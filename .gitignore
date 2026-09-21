@@ -1,0 +1,57 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files — keep the example template
+.env*
+!.env.example
+
+# HR export / backups: national IDs and mobile numbers
+scripts/employees.json
+*.xlsx
+*.dump
+backups/
+lvas-backup-*/
+
+# Real company vehicle/chassis/asset data — keep local
+scripts/light-vehicles.json
+supabase/migrations/20260916060000_seed_light_vehicles.sql
+
+# python helpers
+__pycache__/
+*.pyc
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
