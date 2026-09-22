@@ -32,7 +32,7 @@ export function sessionCookieOptions(maxAge = sessionMaxAgeSeconds()) {
 }
 
 const PROFILE_COLUMNS = `
-  id, full_name, email, role, department, is_active, created_at, updated_at
+  p.id, p.full_name, p.email, p.role, p.department, p.is_active, p.created_at, p.updated_at
 `;
 
 export async function createSession(profileId: string): Promise<string> {

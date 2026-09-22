@@ -29,6 +29,7 @@ import {
   durationExceedsLimit,
   durationLimitMessage,
   getRoleRequestLimit,
+  hasOneDayOrCustomDuration,
   type RoleRequestLimit,
 } from "@/lib/authorizations/limits";
 import { formatDurationLabel, inclusiveDayCount } from "@/lib/dates";
@@ -306,9 +307,13 @@ function DetailsStep({
 }) {
   const { employee } = identity;
   const limit = getRoleRequestLimit(employee.role);
+  const useDurationPresets = hasOneDayOrCustomDuration(employee.role);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [vehicle, setVehicle] = useState<VehicleOption | null>(null);
+  const [durationMode, setDurationMode] = useState<"one_day" | "custom">(
+    "one_day",
+  );
   const [startDate, setStartDate] = useState(todayIsoDate);
   const [endDate, setEndDate] = useState(todayIsoDate);
   const [durationTouched, setDurationTouched] = useState(false);
@@ -327,6 +332,18 @@ function DetailsStep({
   const overLimit = limit
     ? durationExceedsLimit(startDate, endDate, limit)
     : false;
+
+  function applyOneDay(nextStart = todayIsoDate()) {
+    setDurationMode("one_day");
+    setStartDate(nextStart);
+    setEndDate(nextStart);
+    setDurationTouched(false);
+    setDurationLabel(formatDurationLabel(nextStart, nextStart));
+  }
+
+  function applyCustom() {
+    setDurationMode("custom");
+  }
 
   function syncDuration(nextStart: string, nextEnd: string) {
     if (!durationTouched) {
@@ -392,71 +409,176 @@ function DetailsStep({
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="start_date">Start date</Label>
-            <Input
-              id="start_date"
-              type="date"
-              required
-              value={startDate}
-              min={todayIsoDate()}
-              disabled={pending}
-              className="h-11 rounded-xl"
-              onChange={(e) => {
-                setStartDate(e.target.value);
-                syncDuration(e.target.value, endDate);
-              }}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="end_date">End date</Label>
-            <Input
-              id="end_date"
-              type="date"
-              required
-              value={endDate}
-              min={startDate}
-              max={maxEndDate(startDate, limit)}
-              disabled={pending}
-              className="h-11 rounded-xl"
-              onChange={(e) => {
-                setEndDate(e.target.value);
-                syncDuration(startDate, e.target.value);
-              }}
-            />
-            {limit ? (
-              <p
-                className={cn(
-                  "text-xs",
-                  overLimit ? "text-rose-600" : "text-slate-500",
-                )}
-              >
-                {overLimit
-                  ? `Your category allows ${limit.durationLabel}. Selected: ${selectedDays} days.`
-                  : `Max window: ${limit.durationLabel}.`}
+        {useDurationPresets ? (
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label>Duration</Label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => applyOneDay(startDate)}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-sm font-medium transition",
+                    durationMode === "one_day"
+                      ? "border-[#e30613]/30 bg-[#e30613] text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                  )}
+                >
+                  1 day
+                </button>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={applyCustom}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-sm font-medium transition",
+                    durationMode === "custom"
+                      ? "border-[#e30613]/30 bg-[#e30613] text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                  )}
+                >
+                  Custom (up to 1 month)
+                </button>
+              </div>
+              <p className="text-xs text-slate-500">
+                Default is 1 day. Custom lets you choose any window up to 30
+                days. You can submit once every day.
               </p>
-            ) : null}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="start_date">Start date</Label>
+                <Input
+                  id="start_date"
+                  type="date"
+                  required
+                  value={startDate}
+                  min={todayIsoDate()}
+                  disabled={pending}
+                  className="h-11 rounded-xl"
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    if (durationMode === "one_day") {
+                      applyOneDay(next);
+                      return;
+                    }
+                    setStartDate(next);
+                    const capped = maxEndDate(next, limit);
+                    const nextEnd =
+                      capped && endDate > capped
+                        ? capped
+                        : endDate < next
+                          ? next
+                          : endDate;
+                    setEndDate(nextEnd);
+                    syncDuration(next, nextEnd);
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="end_date">End date</Label>
+                <Input
+                  id="end_date"
+                  type="date"
+                  required
+                  value={endDate}
+                  min={startDate}
+                  max={maxEndDate(startDate, limit)}
+                  disabled={pending || durationMode === "one_day"}
+                  className="h-11 rounded-xl"
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    syncDuration(startDate, e.target.value);
+                  }}
+                />
+                <p
+                  className={cn(
+                    "text-xs",
+                    overLimit ? "text-rose-600" : "text-slate-500",
+                  )}
+                >
+                  {durationMode === "one_day"
+                    ? "Single-day authorization."
+                    : overLimit
+                      ? `Max is 1 month (30 days). Selected: ${selectedDays} days.`
+                      : `Selected: ${selectedDays} day${selectedDays === 1 ? "" : "s"} (max 30).`}
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="start_date">Start date</Label>
+              <Input
+                id="start_date"
+                type="date"
+                required
+                value={startDate}
+                min={todayIsoDate()}
+                disabled={pending}
+                className="h-11 rounded-xl"
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  syncDuration(e.target.value, endDate);
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="end_date">End date</Label>
+              <Input
+                id="end_date"
+                type="date"
+                required
+                value={endDate}
+                min={startDate}
+                max={maxEndDate(startDate, limit)}
+                disabled={pending}
+                className="h-11 rounded-xl"
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  syncDuration(startDate, e.target.value);
+                }}
+              />
+              {limit ? (
+                <p
+                  className={cn(
+                    "text-xs",
+                    overLimit ? "text-rose-600" : "text-slate-500",
+                  )}
+                >
+                  {overLimit
+                    ? `Your category allows ${limit.durationLabel}. Selected: ${selectedDays} days.`
+                    : `Max window: ${limit.durationLabel}.`}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="duration_label">Duration</Label>
-            <Input
-              id="duration_label"
-              required
-              value={durationLabel}
-              disabled={pending}
-              className="h-11 rounded-xl"
-              placeholder={computedDuration || "e.g. 3 days"}
-              onChange={(e) => {
-                setDurationTouched(true);
-                setDurationLabel(e.target.value);
-              }}
-            />
-          </div>
-          <div className="space-y-2">
+          {!useDurationPresets ? (
+            <div className="space-y-2">
+              <Label htmlFor="duration_label">Duration</Label>
+              <Input
+                id="duration_label"
+                required
+                value={durationLabel}
+                disabled={pending}
+                className="h-11 rounded-xl"
+                placeholder={computedDuration || "e.g. 3 days"}
+                onChange={(e) => {
+                  setDurationTouched(true);
+                  setDurationLabel(e.target.value);
+                }}
+              />
+            </div>
+          ) : (
+            <input type="hidden" name="duration_label" value={durationLabel} />
+          )}
+          <div className={cn("space-y-2", useDurationPresets && "sm:col-span-2")}>
             <Label htmlFor="usage_after">Usage after</Label>
             <Input
               id="usage_after"

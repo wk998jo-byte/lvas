@@ -21,19 +21,24 @@ export const ROLE_REQUEST_LIMITS: Record<UserRole, RoleRequestLimit | null> = {
     durationLabel: "up to 3 months (90 days)",
   },
   supervisor_requester: {
-    maxDurationDays: 7,
-    cooldownDays: 7,
-    cadenceLabel: "once every week",
-    durationLabel: "up to 1 week (7 days)",
-  },
-  other_employee: {
-    maxDurationDays: 1,
+    maxDurationDays: 30,
     cooldownDays: 1,
     cadenceLabel: "once every day",
-    durationLabel: "1 day",
+    durationLabel: "1 day, or custom up to 1 month (30 days)",
+  },
+  other_employee: {
+    maxDurationDays: 30,
+    cooldownDays: 1,
+    cadenceLabel: "once every day",
+    durationLabel: "1 day, or custom up to 1 month (30 days)",
   },
   admin: null,
 };
+
+/** Roles that pick a 1-day default with an optional custom window up to max. */
+export function hasOneDayOrCustomDuration(role: UserRole): boolean {
+  return role === "supervisor_requester" || role === "other_employee";
+}
 
 export function getRoleRequestLimit(role: UserRole): RoleRequestLimit | null {
   return ROLE_REQUEST_LIMITS[role];
