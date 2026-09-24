@@ -168,6 +168,7 @@ create table if not exists authorizations (
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
   constraint authorizations_date_range_check check (end_date >= start_date),
+  constraint authorizations_usage_after_fixed_check check (usage_after = time '19:00'),
   constraint authorizations_rejection_reason_check check (
     (status <> 'rejected') or (rejection_reason is not null and length(trim(rejection_reason)) > 0)
   ),
@@ -195,26 +196,34 @@ for each row
 execute function set_updated_at();
 
 -- Overlap protection without btree_gist (Replit-portable).
+-- Only APPROVED authorizations block another overlapping approval.
+-- Pending requests do not reserve the vehicle.
+-- Vehicle row is locked so two concurrent approvals cannot both succeed.
 create or replace function prevent_authorization_overlap()
 returns trigger
 language plpgsql
 as $$
 begin
-  if new.status not in ('pending', 'approved') then
+  if new.status is distinct from 'approved' then
     return new;
   end if;
+
+  perform 1
+  from vehicles
+  where id = new.vehicle_id
+  for update;
 
   if exists (
     select 1
     from authorizations a
     where a.vehicle_id = new.vehicle_id
-      and a.status in ('pending', 'approved')
+      and a.status = 'approved'
       and a.id is distinct from new.id
       and a.start_date <= new.end_date
       and a.end_date >= new.start_date
   ) then
     raise exception
-      'This vehicle is already booked for overlapping dates.'
+      'Vehicle has an active authorization for overlapping dates.'
       using errcode = 'exclusion_violation';
   end if;
 

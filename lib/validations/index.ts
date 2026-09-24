@@ -53,11 +53,6 @@ const authorizationFieldsSchema = z.object({
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Start date is required"),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "End date is required"),
   duration_label: z.string().trim().min(1, "Duration is required").max(80),
-  usage_after: z
-    .string()
-    .trim()
-    .regex(/^\d{2}:\d{2}(:\d{2})?$/, "Usage time must be HH:MM")
-    .default("19:00"),
   purpose: z
     .string()
     .trim()

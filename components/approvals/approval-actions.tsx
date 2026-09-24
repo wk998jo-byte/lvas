@@ -8,7 +8,9 @@ import {
   approveAuthorization,
   rejectAuthorization,
 } from "@/actions/approvals";
+import { ActiveAuthorizationNotice } from "@/components/approvals/active-authorization-notice";
 import { Button } from "@/components/ui/button";
+import type { ActiveAuthorizationConflict } from "@/lib/authorizations/overlap";
 import {
   Dialog,
   DialogContent,
@@ -22,9 +24,13 @@ import { Textarea } from "@/components/ui/textarea";
 
 type ApprovalActionsProps = {
   authorizationId: string;
+  conflict?: ActiveAuthorizationConflict | null;
 };
 
-export function ApprovalActions({ authorizationId }: ApprovalActionsProps) {
+export function ApprovalActions({
+  authorizationId,
+  conflict = null,
+}: ApprovalActionsProps) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -69,12 +75,13 @@ export function ApprovalActions({ authorizationId }: ApprovalActionsProps) {
 
   return (
     <div className="space-y-3">
+      {conflict ? <ActiveAuthorizationNotice conflict={conflict} /> : null}
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
           size="sm"
           className="rounded-full bg-emerald-600 shadow-[0_10px_24px_-12px_rgba(5,150,105,0.8)] hover:bg-emerald-700"
-          disabled={pending}
+          disabled={pending || Boolean(conflict)}
           onClick={onApprove}
         >
           <Check className="size-3.5" />

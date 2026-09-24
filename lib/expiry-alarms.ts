@@ -1,3 +1,4 @@
+import { addCalendarDays, saudiTodayIsoDate } from "@/lib/business-date";
 import { isUniqueViolation } from "@/lib/db/pool";
 import {
   insertNotification,
@@ -20,16 +21,6 @@ type AuthorizationWithVehicle = Authorization & {
   vehicles: Pick<Vehicle, "plate_number" | "make" | "model"> | null;
 };
 
-function utcTodayIsoDate(now = new Date()): string {
-  return now.toISOString().slice(0, 10);
-}
-
-function addUtcDays(isoDate: string, days: number): string {
-  const date = new Date(`${isoDate}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
 function inclusiveDaysUntil(endDate: string, today: string): number {
   const end = Date.parse(`${endDate}T00:00:00.000Z`);
   const start = Date.parse(`${today}T00:00:00.000Z`);
@@ -47,8 +38,8 @@ function expiryDedupeKey(authorizationId: string, daysLeft: number): string {
 export async function runExpiryAlarms(
   now = new Date(),
 ): Promise<ExpiryAlarmResult> {
-  const today = utcTodayIsoDate(now);
-  const maxEnd = addUtcDays(today, Math.max(...EXPIRY_THRESHOLDS_DAYS));
+  const today = saudiTodayIsoDate(now);
+  const maxEnd = addCalendarDays(today, Math.max(...EXPIRY_THRESHOLDS_DAYS));
 
   const result: ExpiryAlarmResult = {
     scanned: 0,

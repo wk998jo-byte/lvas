@@ -32,6 +32,7 @@ import {
   hasOneDayOrCustomDuration,
   type RoleRequestLimit,
 } from "@/lib/authorizations/limits";
+import { addCalendarDays, saudiTodayIsoDate } from "@/lib/business-date";
 import { formatDurationLabel, inclusiveDayCount } from "@/lib/dates";
 import { roleLabel } from "@/lib/auth/roles";
 import { Button } from "@/components/ui/button";
@@ -48,17 +49,10 @@ type PublicRequestFormProps = {
   vehicles: VehicleOption[];
 };
 
-function todayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 /** Latest end date allowed for the category, inclusive of the start date. */
 function maxEndDate(startDate: string, limit: RoleRequestLimit | null) {
   if (!limit) return undefined;
-  const start = new Date(`${startDate}T00:00:00.000Z`);
-  if (Number.isNaN(start.getTime())) return undefined;
-  start.setUTCDate(start.getUTCDate() + limit.maxDurationDays - 1);
-  return start.toISOString().slice(0, 10);
+  return addCalendarDays(startDate, limit.maxDurationDays - 1);
 }
 
 /** Identity carried between steps; the server re-verifies on submit. */
@@ -314,13 +308,12 @@ function DetailsStep({
   const [durationMode, setDurationMode] = useState<"one_day" | "custom">(
     "one_day",
   );
-  const [startDate, setStartDate] = useState(todayIsoDate);
-  const [endDate, setEndDate] = useState(todayIsoDate);
+  const [startDate, setStartDate] = useState(saudiTodayIsoDate);
+  const [endDate, setEndDate] = useState(saudiTodayIsoDate);
   const [durationTouched, setDurationTouched] = useState(false);
   const [durationLabel, setDurationLabel] = useState(() =>
-    formatDurationLabel(todayIsoDate(), todayIsoDate()),
+    formatDurationLabel(saudiTodayIsoDate(), saudiTodayIsoDate()),
   );
-  const [usageAfter, setUsageAfter] = useState("19:00");
   const [mobile, setMobile] = useState("");
   const [purpose, setPurpose] = useState("");
 
@@ -333,7 +326,7 @@ function DetailsStep({
     ? durationExceedsLimit(startDate, endDate, limit)
     : false;
 
-  function applyOneDay(nextStart = todayIsoDate()) {
+  function applyOneDay(nextStart = saudiTodayIsoDate()) {
     setDurationMode("one_day");
     setStartDate(nextStart);
     setEndDate(nextStart);
@@ -371,7 +364,6 @@ function DetailsStep({
         start_date: startDate,
         end_date: endDate,
         duration_label: durationLabel || computedDuration,
-        usage_after: usageAfter,
         purpose,
         contact_mobile: mobile,
       });
@@ -455,7 +447,7 @@ function DetailsStep({
                   type="date"
                   required
                   value={startDate}
-                  min={todayIsoDate()}
+                  min={saudiTodayIsoDate()}
                   disabled={pending}
                   className="h-11 rounded-xl"
                   onChange={(e) => {
@@ -517,7 +509,7 @@ function DetailsStep({
                 type="date"
                 required
                 value={startDate}
-                min={todayIsoDate()}
+                min={saudiTodayIsoDate()}
                 disabled={pending}
                 className="h-11 rounded-xl"
                 onChange={(e) => {
@@ -558,38 +550,34 @@ function DetailsStep({
           </div>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          {!useDurationPresets ? (
-            <div className="space-y-2">
-              <Label htmlFor="duration_label">Duration</Label>
-              <Input
-                id="duration_label"
-                required
-                value={durationLabel}
-                disabled={pending}
-                className="h-11 rounded-xl"
-                placeholder={computedDuration || "e.g. 3 days"}
-                onChange={(e) => {
-                  setDurationTouched(true);
-                  setDurationLabel(e.target.value);
-                }}
-              />
-            </div>
-          ) : (
-            <input type="hidden" name="duration_label" value={durationLabel} />
-          )}
-          <div className={cn("space-y-2", useDurationPresets && "sm:col-span-2")}>
-            <Label htmlFor="usage_after">Usage after</Label>
+        {!useDurationPresets ? (
+          <div className="space-y-2">
+            <Label htmlFor="duration_label">Duration</Label>
             <Input
-              id="usage_after"
-              type="time"
+              id="duration_label"
               required
-              value={usageAfter}
+              value={durationLabel}
               disabled={pending}
               className="h-11 rounded-xl"
-              onChange={(e) => setUsageAfter(e.target.value)}
+              placeholder={computedDuration || "e.g. 3 days"}
+              onChange={(e) => {
+                setDurationTouched(true);
+                setDurationLabel(e.target.value);
+              }}
             />
           </div>
+        ) : (
+          <input type="hidden" name="duration_label" value={durationLabel} />
+        )}
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-600">
+          <p className="flex items-center gap-1.5 font-medium text-slate-800">
+            <Clock3 className="size-3.5" />
+            After-hours authorization
+          </p>
+          <p className="mt-1">
+            Vehicle use is authorized after 7:00 PM on each approved date.
+          </p>
         </div>
 
         <div className="space-y-2">

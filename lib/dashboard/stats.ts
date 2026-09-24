@@ -1,3 +1,4 @@
+import { addCalendarDays, saudiTodayIsoDate } from "@/lib/business-date";
 import {
   countActiveVehicles,
   countApprovedActive,
@@ -12,19 +13,9 @@ export type DashboardKpis = {
   fleetVehicles: number;
 };
 
-function utcTodayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function addUtcDays(isoDate: string, days: number): string {
-  const date = new Date(`${isoDate}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
 export async function getDashboardKpis(): Promise<DashboardKpis> {
-  const today = utcTodayIsoDate();
-  const in7Days = addUtcDays(today, 7);
+  const today = saudiTodayIsoDate();
+  const in7Days = addCalendarDays(today, 7);
 
   const [active, pending, expiring, fleet] = await Promise.all([
     countApprovedActive(today),

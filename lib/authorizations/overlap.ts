@@ -1,6 +1,9 @@
-import { findOverlappingAuthorization as findOverlapRow } from "@/lib/db/queries";
-
-type BlockingStatus = "pending" | "approved";
+export type ActiveAuthorizationConflict = {
+  id: string;
+  authorized_to: string;
+  start_date: string;
+  end_date: string;
+};
 
 /**
  * True when [startA, endA] overlaps [startB, endB] (inclusive date ranges).
@@ -14,40 +17,20 @@ export function datesOverlap(
   return startA <= endB && endA >= startB;
 }
 
-/**
- * Returns a blocking pending/approved authorization for the same vehicle
- * whose dates overlap the requested range, if any.
- */
-export async function findOverlappingAuthorization(input: {
-  vehicleId: string;
-  startDate: string;
-  endDate: string;
-  excludeId?: string;
-}): Promise<{
-  id: string;
-  start_date: string;
-  end_date: string;
-  status: BlockingStatus;
-} | null> {
-  const match = await findOverlapRow(input);
-  if (!match) return null;
-  return {
-    id: match.id,
-    start_date: match.start_date,
-    end_date: match.end_date,
-    status: match.status,
-  };
+export function formatAuthorizationDate(value: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }).format(new Date(`${value}T00:00:00.000Z`));
+  } catch {
+    return value;
+  }
 }
 
-export function overlapErrorMessage(conflict: {
-  start_date: string;
-  end_date: string;
-  status: string;
-}): string {
-  return [
-    "This vehicle already has a",
-    conflict.status,
-    `authorization from ${conflict.start_date} to ${conflict.end_date}.`,
-    "Choose different dates or another vehicle.",
-  ].join(" ");
+export function activeAuthorizationError(
+  conflict: ActiveAuthorizationConflict,
+): string {
+  return `Vehicle has an active authorization for ${conflict.authorized_to} until ${formatAuthorizationDate(conflict.end_date)}.`;
 }
