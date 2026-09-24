@@ -21,6 +21,8 @@ import {
   approveAuthorization,
   rejectAuthorization,
 } from "@/actions/approvals";
+import { ActiveAuthorizationNotice } from "@/components/approvals/active-authorization-notice";
+import { EndAuthorizationAction } from "@/components/approvals/end-authorization-action";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { ExportCsvButton } from "@/components/export/export-csv-button";
 import { AuthorizationStatusBadge } from "@/components/authorizations/status-badge";
@@ -42,6 +44,7 @@ import {
   type RequesterProfileRef,
 } from "@/lib/authorizations/requester";
 import { cn } from "@/lib/utils";
+import type { ActiveAuthorizationConflict } from "@/lib/authorizations/overlap";
 import type {
   Authorization,
   AuthorizationStatus,
@@ -52,6 +55,7 @@ export type ApprovalListItem = Authorization & {
   vehicles: Pick<Vehicle, "plate_number" | "make" | "model"> | null;
   requester: RequesterProfileRef;
   employees: RequesterEmployeeRef;
+  activeConflict?: ActiveAuthorizationConflict | null;
 };
 
 type FilterKey =
@@ -313,6 +317,9 @@ export function ApprovalsTable({
                 : request.usage_after;
             const isPending =
               (request.status as AuthorizationStatus) === "pending";
+            const isApproved =
+              (request.status as AuthorizationStatus) === "approved";
+            const conflict = request.activeConflict ?? null;
             const plate = vehicle?.plate_number ?? "Vehicle";
             const model = vehicle
               ? `${vehicle.make} ${vehicle.model}`
@@ -377,6 +384,9 @@ export function ApprovalsTable({
                           {request.purpose}
                         </p>
                       ) : null}
+                      {isPending && conflict ? (
+                        <ActiveAuthorizationNotice conflict={conflict} />
+                      ) : null}
                     </div>
                   </div>
 
@@ -387,7 +397,7 @@ export function ApprovalsTable({
                           type="button"
                           size="sm"
                           className="rounded-full bg-emerald-600 shadow-[0_10px_24px_-12px_rgba(5,150,105,0.8)] hover:bg-emerald-700"
-                          disabled={pending}
+                          disabled={pending || Boolean(conflict)}
                           onClick={() => onApprove(request.id)}
                         >
                           <Check className="size-3.5" />
@@ -408,6 +418,9 @@ export function ApprovalsTable({
                           Reject
                         </Button>
                       </>
+                    ) : null}
+                    {isApproved ? (
+                      <EndAuthorizationAction authorizationId={request.id} />
                     ) : null}
                     <Button
                       size="sm"

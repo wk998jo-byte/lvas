@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { History, Link2, Sparkles, TriangleAlert } from "lucide-react";
 
+import { addCalendarDays, saudiTodayIsoDate } from "@/lib/business-date";
 import { requireRole } from "@/lib/auth/guards";
 import { getDashboardKpis } from "@/lib/dashboard/stats";
 import {
@@ -30,16 +31,6 @@ type VehicleRef = {
   make: string;
   model: string;
 } | null;
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function addDays(iso: string, days: number): string {
-  const date = new Date(`${iso}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
 
 function formatDate(value: string): string {
   try {
@@ -72,9 +63,9 @@ function vehicleLabel(vehicle: VehicleRef): string {
 export default async function DashboardHomePage() {
   const profile = await requireRole("admin");
 
-  const today = todayIso();
-  const in7Days = addDays(today, 7);
-  const since90Days = addDays(today, -90);
+  const today = saudiTodayIsoDate();
+  const in7Days = addCalendarDays(today, 7);
+  const since90Days = addCalendarDays(today, -90);
 
   const [
     stats,

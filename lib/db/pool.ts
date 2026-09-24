@@ -72,7 +72,7 @@ export function isOverlapViolation(error: unknown): boolean {
   const message = (error as { message?: string }).message ?? "";
   return (
     code === "23P01" ||
-    /overlap|already booked for overlapping/i.test(message)
+    /overlap|active authorization/i.test(message)
   );
 }
 

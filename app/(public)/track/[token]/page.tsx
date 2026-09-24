@@ -15,7 +15,7 @@ const STATUS_HINT: Record<string, string> = {
   approved: "Approved. Show the pass below at the gate.",
   rejected: "This request was rejected.",
   expired: "This authorization has expired.",
-  cancelled: "This request was cancelled.",
+  cancelled: "This authorization has ended.",
 };
 
 export default async function TrackRequestPage({

@@ -4,9 +4,13 @@ import { revalidatePath } from "next/cache";
 
 import { fail, ok, type ActionResult } from "@/lib/actions";
 import { requireRole } from "@/lib/auth/guards";
-import { pgErrorMessage } from "@/lib/db/pool";
+import { activeAuthorizationError } from "@/lib/authorizations/overlap";
+import { isOverlapViolation, pgErrorMessage } from "@/lib/db/pool";
 import {
   approvePendingAuthorization,
+  cancelApprovedAuthorization,
+  findApprovedOverlappingAuthorization,
+  getAuthorizationById,
   getVehicleById,
   insertNotification,
   rejectPendingAuthorization,
@@ -58,6 +62,21 @@ export async function approveAuthorization(
   }
 
   try {
+    const current = await getAuthorizationById(parsed.data.id);
+    if (!current || current.status !== "pending") {
+      return fail("Only pending requests can be approved");
+    }
+
+    const conflict = await findApprovedOverlappingAuthorization({
+      vehicleId: current.vehicle_id,
+      startDate: current.start_date,
+      endDate: current.end_date,
+      excludeId: current.id,
+    });
+    if (conflict) {
+      return fail(activeAuthorizationError(conflict));
+    }
+
     const data = await approvePendingAuthorization({
       id: parsed.data.id,
       approverId: profile.id,
@@ -77,6 +96,11 @@ export async function approveAuthorization(
     revalidateApprovalPaths(data.id);
     return ok(data);
   } catch (error) {
+    if (isOverlapViolation(error)) {
+      return fail(
+        "Vehicle has an active authorization for overlapping dates.",
+      );
+    }
     return fail(pgErrorMessage(error));
   }
 }
@@ -107,6 +131,28 @@ export async function rejectAuthorization(
       title: "Authorization rejected",
       body: `Your request for ${plate} was rejected: ${parsed.data.rejection_reason}`,
     });
+
+    revalidateApprovalPaths(data.id);
+    return ok(data);
+  } catch (error) {
+    return fail(pgErrorMessage(error));
+  }
+}
+
+export async function endAuthorization(
+  input: unknown,
+): Promise<ActionResult<Authorization>> {
+  await requireRole("admin");
+  const parsed = authorizationIdSchema.safeParse(input);
+  if (!parsed.success) {
+    return fail(parsed.error.issues[0]?.message ?? "Invalid authorization id");
+  }
+
+  try {
+    const data = await cancelApprovedAuthorization(parsed.data.id);
+    if (!data) {
+      return fail("Only an approved authorization can be ended.");
+    }
 
     revalidateApprovalPaths(data.id);
     return ok(data);

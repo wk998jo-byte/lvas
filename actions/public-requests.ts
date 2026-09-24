@@ -12,10 +12,9 @@ import {
   getRoleRequestLimit,
 } from "@/lib/authorizations/limits";
 import {
-  findOverlappingAuthorization,
-  overlapErrorMessage,
-} from "@/lib/authorizations/overlap";
-import { normalizeUsageAfter } from "@/lib/dates";
+  FIXED_USAGE_AFTER,
+  isOnOrAfterSaudiToday,
+} from "@/lib/business-date";
 import {
   isCheckViolation,
   isOverlapViolation,
@@ -123,6 +122,10 @@ export async function submitPublicRequest(
     return fail("The last 4 digits do not match this employee record.");
   }
 
+  if (!isOnOrAfterSaudiToday(parsed.data.start_date)) {
+    return fail("Start date cannot be before today.");
+  }
+
   const approverId = await getDefaultApproverId();
   if (!approverId) {
     return fail(
@@ -161,21 +164,6 @@ export async function submitPublicRequest(
   }
 
   try {
-    const conflict = await findOverlappingAuthorization({
-      vehicleId: parsed.data.vehicle_id,
-      startDate: parsed.data.start_date,
-      endDate: parsed.data.end_date,
-    });
-    if (conflict) return fail(overlapErrorMessage(conflict));
-  } catch (error) {
-    return fail(
-      error instanceof Error
-        ? error.message
-        : "Failed to check vehicle availability",
-    );
-  }
-
-  try {
     const data = await insertAuthorization({
       vehicle_id: parsed.data.vehicle_id,
       employee_id: employee.id,
@@ -183,7 +171,7 @@ export async function submitPublicRequest(
       start_date: parsed.data.start_date,
       end_date: parsed.data.end_date,
       duration_label: parsed.data.duration_label,
-      usage_after: normalizeUsageAfter(parsed.data.usage_after),
+      usage_after: FIXED_USAGE_AFTER,
       purpose: parsed.data.purpose,
       contact_mobile: parsed.data.contact_mobile,
     });
@@ -205,7 +193,7 @@ export async function submitPublicRequest(
   } catch (error) {
     if (isOverlapViolation(error)) {
       return fail(
-        "This vehicle is already booked for overlapping dates. Choose different dates or another vehicle.",
+        "Vehicle has an active authorization for those dates. Choose different dates or another vehicle.",
       );
     }
     if (isCheckViolation(error)) {

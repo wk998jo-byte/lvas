@@ -33,10 +33,18 @@ export type RequesterEmployeeRef = Pick<
   "full_name" | "badge" | "department" | "mobile"
 > | null;
 
+export type ApprovedOverlapRow = {
+  id: string;
+  authorized_to: string;
+  start_date: string;
+  end_date: string;
+};
+
 export type AuthorizationListRow = Authorization & {
   vehicles: Pick<Vehicle, "plate_number" | "make" | "model"> | null;
   requester: RequesterProfileRef;
   employees: RequesterEmployeeRef;
+  activeConflict?: ApprovedOverlapRow | null;
 };
 
 export type AuthorizationDetailRow = Authorization & {
@@ -297,17 +305,12 @@ export async function getLastLimitRequestAt(employeeId: string): Promise<string 
   return row?.created_at ?? null;
 }
 
-export async function findOverlappingAuthorization(input: {
+export async function findApprovedOverlappingAuthorization(input: {
   vehicleId: string;
   startDate: string;
   endDate: string;
   excludeId?: string;
-}): Promise<{
-  id: string;
-  start_date: string;
-  end_date: string;
-  status: "pending" | "approved";
-} | null> {
+}): Promise<ApprovedOverlapRow | null> {
   const params: unknown[] = [
     input.vehicleId,
     input.startDate,
@@ -316,22 +319,67 @@ export async function findOverlappingAuthorization(input: {
   let excludeSql = "";
   if (input.excludeId) {
     params.push(input.excludeId);
-    excludeSql = `and id <> $${params.length}`;
+    excludeSql = `and a.id <> $${params.length}`;
   }
 
   return queryOne(
     `
-      select id, start_date::text as start_date, end_date::text as end_date, status
-      from authorizations
-      where vehicle_id = $1
-        and status in ('pending', 'approved')
-        and start_date <= $3
-        and end_date >= $2
+      select
+        a.id,
+        coalesce(nullif(e.full_name, ''), 'an employee') as authorized_to,
+        a.start_date::text as start_date,
+        a.end_date::text as end_date
+      from authorizations a
+      left join employees e on e.id = a.employee_id
+      where a.vehicle_id = $1
+        and a.status = 'approved'
+        and a.start_date <= $3
+        and a.end_date >= $2
         ${excludeSql}
+      order by a.end_date desc
       limit 1
     `,
     params,
   );
+}
+
+export async function listApprovedOverlapsForPending(
+  pendingIds: string[],
+): Promise<Map<string, ApprovedOverlapRow>> {
+  const conflicts = new Map<string, ApprovedOverlapRow>();
+  if (pendingIds.length === 0) return conflicts;
+
+  const rows = await query<ApprovedOverlapRow & { pending_id: string }>(
+    `
+      select distinct on (p.id)
+        p.id as pending_id,
+        a.id,
+        coalesce(nullif(e.full_name, ''), 'an employee') as authorized_to,
+        a.start_date::text as start_date,
+        a.end_date::text as end_date
+      from authorizations p
+      join authorizations a
+        on a.vehicle_id = p.vehicle_id
+       and a.status = 'approved'
+       and a.id is distinct from p.id
+       and a.start_date <= p.end_date
+       and a.end_date >= p.start_date
+      left join employees e on e.id = a.employee_id
+      where p.id = any($1::uuid[])
+      order by p.id, a.end_date desc
+    `,
+    [pendingIds],
+  );
+
+  for (const row of rows) {
+    conflicts.set(row.pending_id, {
+      id: row.id,
+      authorized_to: row.authorized_to,
+      start_date: row.start_date,
+      end_date: row.end_date,
+    });
+  }
+  return conflicts;
 }
 
 export async function insertAuthorization(input: {
@@ -485,7 +533,7 @@ export async function getAuthorizationByPublicToken(token: string) {
 export async function listPendingAuthorizations(
   limit = 200,
 ): Promise<AuthorizationListRow[]> {
-  return query<AuthorizationListRow>(
+  const rows = await query<AuthorizationListRow>(
     `
       select ${AUTHORIZATION_LIST_SELECT}
       from authorizations a
@@ -498,6 +546,11 @@ export async function listPendingAuthorizations(
     `,
     [limit],
   );
+  const conflicts = await listApprovedOverlapsForPending(rows.map((row) => row.id));
+  return rows.map((row) => ({
+    ...row,
+    activeConflict: conflicts.get(row.id) ?? null,
+  }));
 }
 
 export async function listHistoryAuthorizations(
@@ -641,6 +694,24 @@ export async function approvePendingAuthorization(input: {
         approved_at, rejected_at, created_at, updated_at
     `,
     [input.id, input.approverId, input.approvedAt],
+  );
+}
+
+export async function cancelApprovedAuthorization(
+  id: string,
+): Promise<Authorization | null> {
+  return queryOne<Authorization>(
+    `
+      update authorizations
+      set status = 'cancelled'
+      where id = $1 and status = 'approved'
+      returning
+        id, vehicle_id, requester_id, employee_id, public_token, contact_mobile,
+        approver_id, status, start_date::text as start_date, end_date::text as end_date,
+        duration_label, usage_after::text as usage_after, purpose, rejection_reason,
+        approved_at, rejected_at, created_at, updated_at
+    `,
+    [id],
   );
 }
 

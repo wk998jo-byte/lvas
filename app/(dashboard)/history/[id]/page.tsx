@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 
 import { requireRole } from "@/lib/auth/guards";
-import { getAuthorizationDetail } from "@/lib/db/queries";
+import { findApprovedOverlappingAuthorization, getAuthorizationDetail } from "@/lib/db/queries";
 import { ApprovalActions } from "@/components/approvals/approval-actions";
+import { EndAuthorizationAction } from "@/components/approvals/end-authorization-action";
 import {
   AuthorizationDetailView,
   type AuthorizationDetailData,
@@ -35,6 +36,16 @@ export default async function RequestDetailPage({
 
   if (!request) notFound();
 
+  const conflict =
+    request.status === "pending"
+      ? await findApprovedOverlappingAuthorization({
+          vehicleId: request.vehicle_id,
+          startDate: request.start_date,
+          endDate: request.end_date,
+          excludeId: request.id,
+        })
+      : null;
+
   return (
     <AuthorizationDetailView
       request={request as AuthorizationDetailData}
@@ -42,7 +53,12 @@ export default async function RequestDetailPage({
       title="Authorization details"
       actions={
         request.status === "pending" ? (
-          <ApprovalActions authorizationId={request.id} />
+          <ApprovalActions
+            authorizationId={request.id}
+            conflict={conflict}
+          />
+        ) : request.status === "approved" ? (
+          <EndAuthorizationAction authorizationId={request.id} />
         ) : null
       }
     />
