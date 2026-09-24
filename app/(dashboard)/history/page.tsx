@@ -1,5 +1,6 @@
 import { History } from "lucide-react";
 
+import { isEffectivelyApproved } from "@/lib/authorizations/effective-status";
 import { requireRole } from "@/lib/auth/guards";
 import { listHistoryAuthorizations } from "@/lib/db/queries";
 import { ApprovalsTable } from "@/components/approvals/approvals-table";
@@ -26,7 +27,9 @@ export default async function RequestsHistoryPage() {
     );
   }
 
-  const approved = requests.filter((item) => item.status === "approved").length;
+  const approved = requests.filter((item) =>
+    isEffectivelyApproved(item.status, item.end_date),
+  ).length;
 
   return (
     <div className="space-y-6 animate-rise">
