@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { AuthorizationDetailData } from "@/components/authorizations/authorization-detail";
+import { isEffectivelyApproved } from "@/lib/authorizations/effective-status";
 
 function one<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
@@ -57,7 +58,7 @@ export function DigitalAuthorizationPass({
     expiry: request.end_date,
   });
 
-  if (request.status !== "approved") return null;
+  if (!isEffectivelyApproved(request.status, request.end_date)) return null;
 
   function printPass() {
     window.print();
