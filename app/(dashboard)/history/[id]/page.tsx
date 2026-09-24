@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { requireRole } from "@/lib/auth/guards";
+import { isEffectivelyApproved } from "@/lib/authorizations/effective-status";
 import { findApprovedOverlappingAuthorization, getAuthorizationDetail } from "@/lib/db/queries";
 import { ApprovalActions } from "@/components/approvals/approval-actions";
 import { EndAuthorizationAction } from "@/components/approvals/end-authorization-action";
@@ -57,7 +58,7 @@ export default async function RequestDetailPage({
             authorizationId={request.id}
             conflict={conflict}
           />
-        ) : request.status === "approved" ? (
+        ) : isEffectivelyApproved(request.status, request.end_date) ? (
           <EndAuthorizationAction authorizationId={request.id} />
         ) : null
       }

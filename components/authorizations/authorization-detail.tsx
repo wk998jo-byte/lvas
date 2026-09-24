@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { AuthorizationStatusBadge } from "@/components/authorizations/status-badge";
+import { effectiveAuthorizationStatus } from "@/lib/authorizations/effective-status";
 import { DigitalAuthorizationPass } from "@/components/authorizations/digital-pass";
 import { Button } from "@/components/ui/button";
 import {
@@ -192,7 +193,12 @@ export function AuthorizationDetailView({
 
         <div className="relative space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <AuthorizationStatusBadge status={request.status} />
+            <AuthorizationStatusBadge
+              status={effectiveAuthorizationStatus(
+                request.status,
+                request.end_date,
+              )}
+            />
             <span className="text-xs font-medium tracking-[0.18em] text-slate-400 uppercase">
               After-hours authorization
             </span>

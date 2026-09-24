@@ -5,8 +5,10 @@ import { ArrowLeft, Copy } from "lucide-react";
 import { AuthorizationStatusBadge } from "@/components/authorizations/status-badge";
 import { PublicPass } from "@/components/public/public-pass";
 import { Button } from "@/components/ui/button";
-import { publicTokenSchema } from "@/lib/validations";
+import { effectiveAuthorizationStatus } from "@/lib/authorizations/effective-status";
+import { saudiTodayIsoDate } from "@/lib/business-date";
 import { getAuthorizationByPublicToken } from "@/lib/db/queries";
+import { publicTokenSchema } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +44,11 @@ export default async function TrackRequestPage({
     typeof request.usage_after === "string"
       ? request.usage_after.slice(0, 5)
       : request.usage_after;
+  const status = effectiveAuthorizationStatus(
+    request.status,
+    request.end_date,
+    saudiTodayIsoDate(),
+  );
 
   return (
     <div className="space-y-6">
@@ -50,10 +57,10 @@ export default async function TrackRequestPage({
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
             Request {reference}
           </h1>
-          <AuthorizationStatusBadge status={request.status} />
+          <AuthorizationStatusBadge status={status} />
         </div>
         <p className="text-sm text-slate-600">
-          {STATUS_HINT[request.status] ?? ""}
+          {STATUS_HINT[status] ?? ""}
         </p>
         <p className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500">
           <Copy className="size-3.5" />
@@ -97,7 +104,7 @@ export default async function TrackRequestPage({
         </dl>
       </section>
 
-      {request.status === "approved" && vehicle && employee ? (
+      {status === "approved" && vehicle && employee ? (
         <PublicPass
           pass={{
             id: request.id,

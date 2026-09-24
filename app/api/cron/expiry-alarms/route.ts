@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 
 import { runExpiryAlarms } from "@/lib/expiry-alarms";
 
+/**
+ * Persists approved → expired after end_date. User-facing expiry does not
+ * wait for this job; it uses effectiveAuthorizationStatus().
+ *
+ * Production scheduler (Replit): daily GET or POST /api/cron/expiry-alarms
+ * shortly after 00:05 Asia/Riyadh, with
+ *   Authorization: Bearer <CRON_SECRET>
+ * Store CRON_SECRET in Replit Secrets. Do not hardcode it.
+ */
+
 function authorizeCron(request: Request): boolean {
   const secret = process.env.CRON_SECRET?.trim();
   if (!secret) {

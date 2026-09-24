@@ -43,11 +43,15 @@ import {
   type RequesterEmployeeRef,
   type RequesterProfileRef,
 } from "@/lib/authorizations/requester";
+import {
+  effectiveAuthorizationStatus,
+  isEffectivelyApproved,
+} from "@/lib/authorizations/effective-status";
+import { saudiTodayIsoDate } from "@/lib/business-date";
 import { cn } from "@/lib/utils";
 import type { ActiveAuthorizationConflict } from "@/lib/authorizations/overlap";
 import type {
   Authorization,
-  AuthorizationStatus,
   Vehicle,
 } from "@/types/database";
 
@@ -116,10 +120,15 @@ export function ApprovalsTable({
   const [reason, setReason] = useState("");
   const [pending, startTransition] = useTransition();
   const filters = MODE_FILTERS[mode];
+  const saudiToday = saudiTodayIsoDate();
 
   const counts = useMemo(() => {
     const byStatus = (status: string) =>
-      requests.filter((r) => r.status === status).length;
+      requests.filter(
+        (r) =>
+          effectiveAuthorizationStatus(r.status, r.end_date, saudiToday) ===
+          status,
+      ).length;
     return {
       all: requests.length,
       pending: byStatus("pending"),
@@ -128,12 +137,17 @@ export function ApprovalsTable({
       expired: byStatus("expired"),
       cancelled: byStatus("cancelled"),
     };
-  }, [requests]);
+  }, [requests, saudiToday]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return requests.filter((request) => {
-      if (filter !== "all" && request.status !== filter) return false;
+      const status = effectiveAuthorizationStatus(
+        request.status,
+        request.end_date,
+        saudiToday,
+      );
+      if (filter !== "all" && status !== filter) return false;
       if (!q) return true;
 
       const person = resolveRequester({
@@ -160,7 +174,7 @@ export function ApprovalsTable({
         purpose.includes(q)
       );
     });
-  }, [requests, query, filter]);
+  }, [requests, query, filter, saudiToday]);
 
   function onApprove(id: string) {
     startTransition(async () => {
@@ -315,10 +329,17 @@ export function ApprovalsTable({
               typeof request.usage_after === "string"
                 ? request.usage_after.slice(0, 5)
                 : request.usage_after;
-            const isPending =
-              (request.status as AuthorizationStatus) === "pending";
-            const isApproved =
-              (request.status as AuthorizationStatus) === "approved";
+            const status = effectiveAuthorizationStatus(
+              request.status,
+              request.end_date,
+              saudiToday,
+            );
+            const isPending = status === "pending";
+            const isApproved = isEffectivelyApproved(
+              request.status,
+              request.end_date,
+              saudiToday,
+            );
             const conflict = request.activeConflict ?? null;
             const plate = vehicle?.plate_number ?? "Vehicle";
             const model = vehicle
@@ -351,7 +372,7 @@ export function ApprovalsTable({
                         <h3 className="truncate text-lg font-semibold tracking-tight text-slate-900">
                           {requester.name}
                         </h3>
-                        <AuthorizationStatusBadge status={request.status} />
+                        <AuthorizationStatusBadge status={status} />
                         {requester.badge ? (
                           <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
                             Badge {requester.badge}
