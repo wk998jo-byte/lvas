@@ -21,15 +21,19 @@ import {
   pgErrorMessage,
 } from "@/lib/db/pool";
 import {
+  getEmployeeByBadge,
   getEmployeeForVerify,
   getLastLimitRequestAt,
   getVehicleById,
   insertAuthorization,
   insertNotification,
+  listAuthorizationsByEmployeeId,
   lookupPublicEmployees,
+  type BadgeAuthorizationRow,
   type PublicEmployee,
 } from "@/lib/db/queries";
 import {
+  badgeStatusSchema,
   employeeLookupSchema,
   employeeVerifySchema,
   publicRequestSchema,
@@ -201,4 +205,62 @@ export async function submitPublicRequest(
     }
     return fail(pgErrorMessage(error));
   }
+}
+
+export type BadgeRequestSummary = {
+  token: string;
+  reference: string;
+  status: BadgeAuthorizationRow["status"];
+  startDate: string;
+  endDate: string;
+  durationLabel: string;
+  purpose: string | null;
+  rejectionReason: string | null;
+  plate: string | null;
+  vehicle: string | null;
+};
+
+export type BadgeStatusResult = {
+  fullName: string;
+  badge: string;
+  requests: BadgeRequestSummary[];
+};
+
+export async function lookupRequestsByBadge(
+  input: unknown,
+): Promise<ActionResult<BadgeStatusResult>> {
+  const parsed = badgeStatusSchema.safeParse(input);
+  if (!parsed.success) {
+    return fail(parsed.error.issues[0]?.message ?? "Invalid lookup");
+  }
+
+  const employee = await getEmployeeByBadge(parsed.data.badge);
+  const digits = (employee?.national_id ?? "").replace(/\D/g, "");
+  const matches =
+    employee !== null &&
+    digits.length >= 4 &&
+    digits.slice(-4) === parsed.data.id_last4;
+
+  if (!employee || !matches) {
+    return fail("Badge number and ID digits do not match.");
+  }
+
+  const rows = await listAuthorizationsByEmployeeId(employee.id);
+  return ok({
+    fullName: employee.full_name,
+    badge: employee.badge,
+    requests: rows.map((row) => ({
+      token: row.public_token,
+      reference: row.id.slice(0, 8).toUpperCase(),
+      status: row.status,
+      startDate: row.start_date.slice(0, 10),
+      endDate: row.end_date.slice(0, 10),
+      durationLabel: row.duration_label,
+      purpose: row.purpose,
+      rejectionReason: row.rejection_reason,
+      plate: row.plate_number,
+      vehicle:
+        row.make && row.model ? `${row.make} ${row.model}` : null,
+    })),
+  });
 }

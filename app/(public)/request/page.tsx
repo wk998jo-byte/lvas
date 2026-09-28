@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Car } from "lucide-react";
 
 import { PublicRequestForm } from "@/components/public/public-request-form";
@@ -37,6 +38,15 @@ export default async function PublicRequestPage() {
         <p className="max-w-2xl text-sm text-slate-600">
           No account needed. Confirm your identity with your badge number, pick a
           vehicle and dates, and the request goes straight to the fleet admin.
+        </p>
+        <p className="text-sm text-slate-500">
+          Already submitted?{" "}
+          <Link
+            href="/status"
+            className="font-semibold text-[#e30613] underline-offset-4 hover:underline"
+          >
+            Track your requests by badge
+          </Link>
         </p>
       </header>
 

@@ -182,6 +182,63 @@ export async function lookupPublicEmployees(
   );
 }
 
+export async function getEmployeeByBadge(
+  badge: string,
+): Promise<(PublicEmployee & { national_id: string | null }) | null> {
+  return queryOne<PublicEmployee & { national_id: string | null }>(
+    `
+      select id, badge, full_name, department, position, role, national_id
+      from employees
+      where badge = $1
+      limit 1
+    `,
+    [badge],
+  );
+}
+
+export type BadgeAuthorizationRow = {
+  public_token: string;
+  id: string;
+  status: AuthorizationStatus;
+  start_date: string;
+  end_date: string;
+  duration_label: string;
+  purpose: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+  plate_number: string | null;
+  make: string | null;
+  model: string | null;
+};
+
+export async function listAuthorizationsByEmployeeId(
+  employeeId: string,
+): Promise<BadgeAuthorizationRow[]> {
+  return query<BadgeAuthorizationRow>(
+    `
+      select
+        a.public_token,
+        a.id,
+        a.status,
+        a.start_date::text as start_date,
+        a.end_date::text as end_date,
+        a.duration_label,
+        a.purpose,
+        a.rejection_reason,
+        a.created_at,
+        v.plate_number,
+        v.make,
+        v.model
+      from authorizations a
+      left join vehicles v on v.id = a.vehicle_id
+      where a.employee_id = $1
+      order by a.created_at desc
+      limit 50
+    `,
+    [employeeId],
+  );
+}
+
 export async function getEmployeeForVerify(
   id: string,
 ): Promise<(PublicEmployee & { national_id: string | null }) | null> {
