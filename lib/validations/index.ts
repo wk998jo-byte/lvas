@@ -105,6 +105,18 @@ export const publicTokenSchema = z.object({
   token: z.string().uuid("Invalid tracking link"),
 });
 
+export const badgeStatusSchema = z.object({
+  badge: z
+    .string()
+    .trim()
+    .min(1, "Enter your badge number")
+    .max(32, "Badge number is too long"),
+  id_last4: z
+    .string()
+    .trim()
+    .regex(/^\d{4}$/, "Enter the last 4 digits of your ID"),
+});
+
 export const authorizationIdSchema = z.object({
   id: z.string().uuid("Invalid authorization id"),
 });

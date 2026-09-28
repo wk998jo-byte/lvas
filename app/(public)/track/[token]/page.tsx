@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Copy } from "lucide-react";
+import { ArrowLeft, ClipboardList, Copy } from "lucide-react";
 
 import { AuthorizationStatusBadge } from "@/components/authorizations/status-badge";
 import { PublicPass } from "@/components/public/public-pass";
@@ -62,9 +62,16 @@ export default async function TrackRequestPage({
         <p className="text-sm text-slate-600">
           {STATUS_HINT[status] ?? ""}
         </p>
-        <p className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500">
+        <p className="inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500">
           <Copy className="size-3.5" />
-          Bookmark this page — it is the only way to check this request later.
+          Bookmark this page, or look up every request for your badge on{" "}
+          <Link
+            href="/status"
+            className="font-semibold text-[#e30613] underline-offset-4 hover:underline"
+          >
+            Track requests
+          </Link>
+          .
         </p>
       </header>
 
@@ -119,14 +126,24 @@ export default async function TrackRequestPage({
         />
       ) : null}
 
-      <Button
-        variant="outline"
-        className="no-print rounded-full"
-        render={<Link href="/request" />}
-      >
-        <ArrowLeft className="size-3.5" />
-        Submit another request
-      </Button>
+      <div className="no-print flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          className="rounded-full"
+          render={<Link href="/status" />}
+        >
+          <ClipboardList className="size-3.5" />
+          All my requests
+        </Button>
+        <Button
+          variant="outline"
+          className="rounded-full"
+          render={<Link href="/request" />}
+        >
+          <ArrowLeft className="size-3.5" />
+          Submit another request
+        </Button>
+      </div>
     </div>
   );
 }

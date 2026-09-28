@@ -9,7 +9,9 @@ export async function updateSession(request: NextRequest) {
   const isPublicRoute =
     pathname === "/request" ||
     pathname.startsWith("/request/") ||
-    pathname.startsWith("/track");
+    pathname.startsWith("/track") ||
+    pathname === "/status" ||
+    pathname.startsWith("/status/");
   const isPublicAsset =
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||

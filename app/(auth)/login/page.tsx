@@ -24,9 +24,16 @@ export default async function LoginPage() {
             href="/request"
             className="font-semibold text-[#e30613] underline-offset-4 hover:underline"
           >
-            submit a request without an account
-          </Link>
-          .
+            submit a request
+          </Link>{" "}
+          or{" "}
+          <Link
+            href="/status"
+            className="font-semibold text-[#e30613] underline-offset-4 hover:underline"
+          >
+            track requests by badge
+          </Link>{" "}
+          without an account.
         </p>
       </div>
     </main>

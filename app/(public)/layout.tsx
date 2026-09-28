@@ -37,14 +37,22 @@ export default function PublicLayout({
             </span>
           </Link>
 
-          <Button
-            variant="outline"
-            className="h-9 shrink-0 rounded-full border-slate-200 px-3 text-xs text-slate-600 hover:bg-slate-50"
-            render={<Link href="/login" />}
-          >
-            <LogIn className="size-3.5" />
-            <span className="hidden sm:inline">Admin sign in</span>
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <Link
+              href="/status"
+              className="rounded-full px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              Track requests
+            </Link>
+            <Button
+              variant="outline"
+              className="h-9 shrink-0 rounded-full border-slate-200 px-3 text-xs text-slate-600 hover:bg-slate-50"
+              render={<Link href="/login" />}
+            >
+              <LogIn className="size-3.5" />
+              <span className="hidden sm:inline">Admin sign in</span>
+            </Button>
+          </div>
         </div>
       </header>
 
