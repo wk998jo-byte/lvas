@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import {
+  DASHBOARD_ROLES,
   hasRole,
   homePathForRole,
   PUBLIC_REQUEST_PATH,
@@ -11,15 +12,15 @@ import type { Profile, UserRole } from "@/types/database";
 export { getCurrentProfile };
 
 /**
- * Signing in is admin-only: everyone else raises requests on the public form,
- * so a non-admin session is treated as no session at all.
+ * Dashboard sign-in is for admins and logistics approvers.
+ * Employees raise requests on the public form.
  */
 export async function requireUser(): Promise<Profile> {
   const profile = await getCurrentProfile();
-  if (!profile) {
+  if (!profile || !profile.is_active) {
     redirect("/login");
   }
-  if (profile.role !== "admin" || !profile.is_active) {
+  if (!hasRole(profile.role, DASHBOARD_ROLES)) {
     redirect(PUBLIC_REQUEST_PATH);
   }
   return profile;

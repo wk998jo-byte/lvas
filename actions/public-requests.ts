@@ -28,6 +28,7 @@ import {
   insertAuthorization,
   insertNotification,
   listAuthorizationsByEmployeeId,
+  listLogisticsApproverIdsForLocation,
   lookupPublicEmployees,
   type BadgeAuthorizationRow,
   type PublicEmployee,
@@ -137,6 +138,15 @@ export async function submitPublicRequest(
     );
   }
 
+  const logisticsApproverIds = await listLogisticsApproverIdsForLocation(
+    parsed.data.location,
+  );
+  if (logisticsApproverIds.length === 0) {
+    return fail(
+      "No logistics approver is configured for this location. Contact the fleet administrator.",
+    );
+  }
+
   const limit = getRoleRequestLimit(employee.role);
   if (limit) {
     if (
@@ -176,17 +186,23 @@ export async function submitPublicRequest(
       end_date: parsed.data.end_date,
       duration_label: parsed.data.duration_label,
       usage_after: FIXED_USAGE_AFTER,
-      purpose: parsed.data.purpose,
+      purpose: parsed.data.justification,
       contact_mobile: parsed.data.contact_mobile,
+      location: parsed.data.location,
+      justification: parsed.data.justification,
     });
 
-    await insertNotification({
-      user_id: approverId,
-      authorization_id: data.id,
-      type: "request_submitted",
-      title: "New authorization request",
-      body: `${employee.full_name} (badge ${employee.badge}) requested a vehicle from ${parsed.data.start_date} to ${parsed.data.end_date}.`,
-    });
+    await Promise.all(
+      logisticsApproverIds.map((userId) =>
+        insertNotification({
+          user_id: userId,
+          authorization_id: data.id,
+          type: "request_submitted",
+          title: "New authorization request",
+          body: `${employee.full_name} (badge ${employee.badge}) requested a vehicle at ${parsed.data.location} from ${parsed.data.start_date} to ${parsed.data.end_date}.`,
+        }),
+      ),
+    );
 
     revalidatePath("/", "layout");
 
@@ -216,6 +232,8 @@ export type BadgeRequestSummary = {
   durationLabel: string;
   purpose: string | null;
   rejectionReason: string | null;
+  location: string | null;
+  approvalStage: number;
   plate: string | null;
   vehicle: string | null;
 };
@@ -258,6 +276,8 @@ export async function lookupRequestsByBadge(
       durationLabel: row.duration_label,
       purpose: row.purpose,
       rejectionReason: row.rejection_reason,
+      location: row.location,
+      approvalStage: row.approval_stage,
       plate: row.plate_number,
       vehicle:
         row.make && row.model ? `${row.make} ${row.model}` : null,

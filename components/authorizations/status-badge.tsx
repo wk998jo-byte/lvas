@@ -28,9 +28,11 @@ const DOT_CLASS: Record<AuthorizationStatus, string> = {
 
 export function AuthorizationStatusBadge({
   status,
+  label,
   className,
 }: {
   status: AuthorizationStatus;
+  label?: string;
   className?: string;
 }) {
   const pulse = status === "pending";
@@ -60,7 +62,7 @@ export function AuthorizationStatusBadge({
           )}
         />
       </span>
-      {STATUS_LABEL[status]}
+      {label ?? STATUS_LABEL[status]}
     </Badge>
   );
 }

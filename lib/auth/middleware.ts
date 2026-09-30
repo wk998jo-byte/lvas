@@ -5,7 +5,10 @@ import { SESSION_COOKIE } from "@/lib/auth/session";
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isAuthRoute =
-    pathname.startsWith("/login") || pathname.startsWith("/auth");
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/reset-password") ||
+    pathname.startsWith("/auth");
   const isPublicRoute =
     pathname === "/request" ||
     pathname.startsWith("/request/") ||

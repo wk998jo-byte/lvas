@@ -32,6 +32,7 @@ export const ROLE_REQUEST_LIMITS: Record<UserRole, RoleRequestLimit | null> = {
     cadenceLabel: "once every day",
     durationLabel: "1 day, or custom up to 1 month (30 days)",
   },
+  logistics_approver: null,
   admin: null,
 };
 

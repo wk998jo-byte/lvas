@@ -12,6 +12,7 @@ begin
       'manager_requester',
       'supervisor_requester',
       'other_employee',
+      'logistics_approver',
       'admin'
     );
   end if;
@@ -86,6 +87,19 @@ create table if not exists sessions (
 
 create index if not exists sessions_profile_id_idx on sessions (profile_id);
 create index if not exists sessions_expires_at_idx on sessions (expires_at);
+
+create table if not exists password_reset_tokens (
+  id uuid primary key default gen_random_uuid(),
+  profile_id uuid not null references profiles (id) on delete cascade,
+  token_hash text not null,
+  expires_at timestamptz not null,
+  used_at timestamptz,
+  created_at timestamptz not null default timezone('utc', now()),
+  constraint password_reset_tokens_token_hash_unique unique (token_hash)
+);
+
+create index if not exists password_reset_tokens_profile_id_idx
+  on password_reset_tokens (profile_id);
 
 -- ---------------------------------------------------------------------------
 -- employees
@@ -162,12 +176,18 @@ create table if not exists authorizations (
   duration_label text not null,
   usage_after time not null default time '19:00',
   purpose text,
+  location text,
+  justification text,
+  approval_stage smallint not null default 2,
+  first_approver_id uuid references profiles (id) on delete set null,
+  first_approved_at timestamptz,
   rejection_reason text,
   approved_at timestamptz,
   rejected_at timestamptz,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
   constraint authorizations_date_range_check check (end_date >= start_date),
+  constraint authorizations_approval_stage_check check (approval_stage in (1, 2)),
   constraint authorizations_usage_after_fixed_check check (usage_after = time '19:00'),
   constraint authorizations_rejection_reason_check check (
     (status <> 'rejected') or (rejection_reason is not null and length(trim(rejection_reason)) > 0)
@@ -188,6 +208,15 @@ create index if not exists authorizations_approver_id_idx on authorizations (app
 create index if not exists authorizations_pending_created_at_idx
   on authorizations (created_at desc)
   where status = 'pending';
+create index if not exists authorizations_pending_stage_location_idx
+  on authorizations (approval_stage, location)
+  where status = 'pending';
+
+create table if not exists logistics_approver_locations (
+  profile_id uuid not null references profiles (id) on delete cascade,
+  location text not null,
+  primary key (profile_id, location)
+);
 
 drop trigger if exists authorizations_set_updated_at on authorizations;
 create trigger authorizations_set_updated_at

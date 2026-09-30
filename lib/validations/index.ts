@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { PROJECT_LOCATIONS } from "@/lib/approvals/logistics-team";
+
 export const emailSchema = z.string().email();
 
 const plateSchema = z
@@ -95,6 +97,14 @@ export const publicRequestSchema = authorizationFieldsSchema
       .string()
       .trim()
       .regex(/^\d{9,15}$/, "Enter a valid mobile number"),
+    location: z.enum(PROJECT_LOCATIONS, {
+      error: "Select your project location",
+    }),
+    justification: z
+      .string()
+      .trim()
+      .min(10, "Enter a justification of at least 10 characters")
+      .max(500, "Justification is too long"),
   })
   .refine(endsAfterStart.check, {
     message: endsAfterStart.message,
@@ -117,6 +127,38 @@ export const badgeStatusSchema = z.object({
     .regex(/^\d{4}$/, "Enter the last 4 digits of your ID"),
 });
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().email("Enter a valid email"),
+});
+
+export const resetPasswordSchema = z
+  .object({
+    token: z.string().trim().min(20, "This reset link is invalid"),
+    new_password: z
+      .string()
+      .min(8, "Use at least 8 characters")
+      .max(128, "Password is too long"),
+    confirm_password: z.string().min(1, "Confirm your new password"),
+  })
+  .refine((data) => data.new_password === data.confirm_password, {
+    message: "New passwords do not match",
+    path: ["confirm_password"],
+  });
+
+export const changePasswordSchema = z
+  .object({
+    current_password: z.string().min(1, "Enter your current password"),
+    new_password: z
+      .string()
+      .min(8, "Use at least 8 characters")
+      .max(128, "Password is too long"),
+    confirm_password: z.string().min(1, "Confirm your new password"),
+  })
+  .refine((data) => data.new_password === data.confirm_password, {
+    message: "New passwords do not match",
+    path: ["confirm_password"],
+  });
+
 export const authorizationIdSchema = z.object({
   id: z.string().uuid("Invalid authorization id"),
 });
@@ -133,6 +175,7 @@ export const userRoleSchema = z.enum([
   "manager_requester",
   "supervisor_requester",
   "other_employee",
+  "logistics_approver",
   "admin",
 ]);
 
