@@ -8,7 +8,7 @@ import { ApprovalsTable } from "@/components/approvals/approvals-table";
 export const dynamic = "force-dynamic";
 
 export default async function RequestsHistoryPage() {
-  await requireRole("admin");
+  const profile = await requireRole(["admin", "logistics_approver"]);
 
   let requests;
   try {
@@ -64,7 +64,11 @@ export default async function RequestsHistoryPage() {
         </div>
       </div>
 
-      <ApprovalsTable requests={requests} mode="history" />
+      <ApprovalsTable
+        requests={requests}
+        mode="history"
+        canEndAuthorization={profile.role === "admin"}
+      />
     </div>
   );
 }

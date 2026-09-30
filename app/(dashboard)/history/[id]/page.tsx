@@ -17,7 +17,7 @@ export default async function RequestDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireRole("admin");
+  const profile = await requireRole(["admin", "logistics_approver"]);
   const { id } = await params;
 
   let request;
@@ -58,7 +58,8 @@ export default async function RequestDetailPage({
             authorizationId={request.id}
             conflict={conflict}
           />
-        ) : isEffectivelyApproved(request.status, request.end_date) ? (
+        ) : profile.role === "admin" &&
+          isEffectivelyApproved(request.status, request.end_date) ? (
           <EndAuthorizationAction authorizationId={request.id} />
         ) : null
       }

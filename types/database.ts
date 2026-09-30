@@ -2,6 +2,7 @@ export type UserRole =
   | "manager_requester"
   | "supervisor_requester"
   | "other_employee"
+  | "logistics_approver"
   | "admin";
 
 export type AuthorizationStatus =
@@ -71,6 +72,11 @@ export type Authorization = {
   usage_after: string;
   purpose: string | null;
   rejection_reason: string | null;
+  location: string | null;
+  justification: string | null;
+  approval_stage: number;
+  first_approver_id: string | null;
+  first_approved_at: string | null;
   approved_at: string | null;
   rejected_at: string | null;
   created_at: string;

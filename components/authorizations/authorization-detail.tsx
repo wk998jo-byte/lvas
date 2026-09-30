@@ -46,6 +46,10 @@ export type AuthorizationDetailData = Authorization & {
   requester: AuthorizationDetailPerson | AuthorizationDetailPerson[] | null;
   employees?: RequesterEmployeeRef | RequesterEmployeeRef[];
   approver?: AuthorizationDetailPerson | AuthorizationDetailPerson[] | null;
+  first_approver?:
+    | Pick<Profile, "full_name" | "email">
+    | Pick<Profile, "full_name" | "email">[]
+    | null;
 };
 
 function one<T>(value: T | T[] | null | undefined): T | null {
@@ -163,6 +167,7 @@ export function AuthorizationDetailView({
     contactMobile: request.contact_mobile,
   });
   const approver = one(request.approver);
+  const firstApprover = one(request.first_approver);
   const usage = formatUsageAfter(request.usage_after);
   const plate = vehicle?.plate_number ?? "Request";
 
@@ -329,6 +334,17 @@ export function AuthorizationDetailView({
             >
               {requester.department?.trim() || "—"}
             </DetailRow>
+            <DetailRow icon={<Building2 className="size-4" />} label="Location">
+              {request.location ?? "—"}
+            </DetailRow>
+            <div className="rounded-xl border border-slate-200/70 bg-slate-50/80 px-3 py-3">
+              <p className="text-[11px] font-semibold tracking-[0.14em] text-slate-400 uppercase">
+                Justification
+              </p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
+                {request.justification ?? request.purpose ?? "—"}
+              </p>
+            </div>
           </CardContent>
         </Card>
 
@@ -343,7 +359,18 @@ export function AuthorizationDetailView({
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 pt-4 md:grid-cols-2 xl:grid-cols-4">
-            <DetailRow icon={<UserRound className="size-4" />} label="Approver">
+            <DetailRow icon={<UserRound className="size-4" />} label="First approval">
+              {firstApprover?.full_name?.trim() ||
+                (request.approval_stage === 1 && request.status === "pending"
+                  ? "Waiting for logistics"
+                  : "—")}
+              {request.first_approved_at ? (
+                <span className="mt-0.5 block text-xs font-normal text-slate-500">
+                  {formatDateTime(request.first_approved_at)}
+                </span>
+              ) : null}
+            </DetailRow>
+            <DetailRow icon={<UserRound className="size-4" />} label="Final approver">
               {approver?.full_name?.trim() ||
                 (request.approver_id ? "Muteb" : "Unassigned")}
               {approver?.email ? (

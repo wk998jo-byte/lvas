@@ -1,6 +1,6 @@
 import { Car, Shield } from "lucide-react";
 
-import { requireUser } from "@/lib/auth/guards";
+import { requireRole } from "@/lib/auth/guards";
 import { listVehicles } from "@/lib/db/queries";
 import { VehicleDirectory } from "@/components/vehicles/vehicle-directory";
 import { VehiclesAdminTable } from "@/components/vehicles/vehicles-admin-table";
@@ -8,7 +8,7 @@ import { VehiclesAdminTable } from "@/components/vehicles/vehicles-admin-table";
 export const dynamic = "force-dynamic";
 
 export default async function VehiclesPage() {
-  const profile = await requireUser();
+  const profile = await requireRole("admin");
   const isAdmin = profile.role === "admin";
 
   let list;

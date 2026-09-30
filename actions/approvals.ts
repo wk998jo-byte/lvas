@@ -6,13 +6,16 @@ import { fail, ok, type ActionResult } from "@/lib/actions";
 import { requireRole } from "@/lib/auth/guards";
 import { activeAuthorizationError } from "@/lib/authorizations/overlap";
 import { isOverlapViolation, pgErrorMessage } from "@/lib/db/pool";
+import { getDefaultApproverId } from "@/lib/auth/approver";
 import {
+  advanceToFinalApproval,
   approvePendingAuthorization,
   cancelApprovedAuthorization,
   findApprovedOverlappingAuthorization,
   getAuthorizationById,
   getVehicleById,
   insertNotification,
+  listLocationsForApprover,
   rejectPendingAuthorization,
 } from "@/lib/db/queries";
 import {
@@ -55,7 +58,7 @@ async function notifyRequester(input: {
 export async function approveAuthorization(
   input: unknown,
 ): Promise<ActionResult<Authorization>> {
-  const profile = await requireRole("admin");
+  const profile = await requireRole(["admin", "logistics_approver"]);
   const parsed = authorizationIdSchema.safeParse(input);
   if (!parsed.success) {
     return fail(parsed.error.issues[0]?.message ?? "Invalid authorization id");
@@ -65,6 +68,43 @@ export async function approveAuthorization(
     const current = await getAuthorizationById(parsed.data.id);
     if (!current || current.status !== "pending") {
       return fail("Only pending requests can be approved");
+    }
+
+    if (profile.role === "logistics_approver") {
+      if (current.approval_stage !== 1) {
+        return fail("This request is already with the final approver.");
+      }
+      const locations = await listLocationsForApprover(profile.id);
+      if (!current.location || !locations.includes(current.location)) {
+        return fail("This request is outside your project locations.");
+      }
+
+      const data = await advanceToFinalApproval({
+        id: current.id,
+        approverId: profile.id,
+        approvedAt: new Date().toISOString(),
+      });
+      if (!data) return fail("Only a first-stage request can be approved");
+
+      const plate = await vehicleLabel(data.vehicle_id);
+      const finalApproverId =
+        data.approver_id ?? (await getDefaultApproverId());
+      if (finalApproverId) {
+        await insertNotification({
+          user_id: finalApproverId,
+          authorization_id: data.id,
+          type: "request_submitted",
+          title: "Request ready for final approval",
+          body: `${plate} (${data.start_date} → ${data.end_date}) at ${data.location ?? "the project"} was approved by logistics and is waiting for final approval.`,
+        });
+      }
+
+      revalidateApprovalPaths(data.id);
+      return ok(data);
+    }
+
+    if (current.approval_stage !== 2) {
+      return fail("Logistics approval is still required.");
     }
 
     const conflict = await findApprovedOverlappingAuthorization({
@@ -108,18 +148,36 @@ export async function approveAuthorization(
 export async function rejectAuthorization(
   input: unknown,
 ): Promise<ActionResult<Authorization>> {
-  const profile = await requireRole("admin");
+  const profile = await requireRole(["admin", "logistics_approver"]);
   const parsed = rejectAuthorizationSchema.safeParse(input);
   if (!parsed.success) {
     return fail(parsed.error.issues[0]?.message ?? "Invalid rejection data");
   }
 
   try {
+    const current = await getAuthorizationById(parsed.data.id);
+    if (!current || current.status !== "pending") {
+      return fail("Only pending requests can be rejected");
+    }
+
+    if (profile.role === "logistics_approver") {
+      if (current.approval_stage !== 1) {
+        return fail("This request is already with the final approver.");
+      }
+      const locations = await listLocationsForApprover(profile.id);
+      if (!current.location || !locations.includes(current.location)) {
+        return fail("This request is outside your project locations.");
+      }
+    } else if (current.approval_stage !== 2) {
+      return fail("Logistics approval is still required.");
+    }
+
     const data = await rejectPendingAuthorization({
       id: parsed.data.id,
       approverId: profile.id,
       rejectedAt: new Date().toISOString(),
       rejectionReason: parsed.data.rejection_reason,
+      approvalStage: profile.role === "logistics_approver" ? 1 : 2,
     });
     if (!data) return fail("Only pending requests can be rejected");
 

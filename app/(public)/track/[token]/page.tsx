@@ -5,6 +5,7 @@ import { ArrowLeft, ClipboardList, Copy } from "lucide-react";
 import { AuthorizationStatusBadge } from "@/components/authorizations/status-badge";
 import { PublicPass } from "@/components/public/public-pass";
 import { Button } from "@/components/ui/button";
+import { pendingStageLabel } from "@/lib/approvals/logistics-team";
 import { effectiveAuthorizationStatus } from "@/lib/authorizations/effective-status";
 import { saudiTodayIsoDate } from "@/lib/business-date";
 import { getAuthorizationByPublicToken } from "@/lib/db/queries";
@@ -13,7 +14,7 @@ import { publicTokenSchema } from "@/lib/validations";
 export const dynamic = "force-dynamic";
 
 const STATUS_HINT: Record<string, string> = {
-  pending: "Waiting for the fleet admin to review your request.",
+  pending: "Waiting for review.",
   approved: "Approved. Show the pass below at the gate.",
   rejected: "This request was rejected.",
   expired: "This authorization has expired.",
@@ -57,10 +58,21 @@ export default async function TrackRequestPage({
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
             Request {reference}
           </h1>
-          <AuthorizationStatusBadge status={status} />
+          <AuthorizationStatusBadge
+            status={status}
+            label={
+              status === "pending"
+                ? pendingStageLabel(request.approval_stage)
+                : undefined
+            }
+          />
         </div>
         <p className="text-sm text-slate-600">
-          {STATUS_HINT[status] ?? ""}
+          {status === "pending"
+            ? request.approval_stage === 1
+              ? "Waiting for the logistics supervisor to review your request."
+              : "Logistics approved this request. Waiting for final approval."
+            : (STATUS_HINT[status] ?? "")}
         </p>
         <p className="inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500">
           <Copy className="size-3.5" />
@@ -91,6 +103,11 @@ export default async function TrackRequestPage({
                 ? `${vehicle.plate_number} — ${vehicle.make} ${vehicle.model}`
                 : "—"
             }
+          />
+          <Field label="Location" value={request.location ?? "—"} />
+          <Field
+            label="Justification"
+            value={request.justification ?? request.purpose ?? "—"}
           />
           <Field label="Duration" value={request.duration_label} />
           <Field

@@ -74,6 +74,12 @@ function pageMeta(pathname: string): {
       crumbs: [{ label: "Home", href: "/" }, { label: "Vehicles" }],
     };
   }
+  if (pathname.startsWith("/account/password")) {
+    return {
+      title: "Change password",
+      crumbs: [{ label: "Home", href: "/" }, { label: "Change password" }],
+    };
+  }
   if (pathname.startsWith("/admin/employees")) {
     return {
       title: "Employees",
@@ -115,14 +121,14 @@ export function AppShell({ profile, pendingCount, children }: AppShellProps) {
         href: "/",
         label: "Dashboard",
         icon: LayoutDashboard,
-        roles: ["admin"] as UserRole[],
+        roles: ["admin", "logistics_approver"] as UserRole[],
         badge: pendingCount,
       },
       {
         href: "/history",
         label: "Requests history",
         icon: History,
-        roles: ["admin"] as UserRole[],
+        roles: ["admin", "logistics_approver"] as UserRole[],
       },
       {
         href: "/vehicles",
