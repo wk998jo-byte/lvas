@@ -4,6 +4,7 @@ export const ROLES = {
   MANAGER_REQUESTER: "manager_requester",
   SUPERVISOR_REQUESTER: "supervisor_requester",
   OTHER_EMPLOYEE: "other_employee",
+  LOGISTICS_APPROVER: "logistics_approver",
   ADMIN: "admin",
 } as const satisfies Record<string, UserRole>;
 
@@ -14,7 +15,13 @@ export const REQUESTER_ROLES: UserRole[] = [
   "other_employee",
 ];
 
-export const ALL_ROLES: UserRole[] = [...REQUESTER_ROLES, "admin"];
+export const ALL_ROLES: UserRole[] = [
+  ...REQUESTER_ROLES,
+  "logistics_approver",
+  "admin",
+];
+
+export const DASHBOARD_ROLES: UserRole[] = ["admin", "logistics_approver"];
 
 export function hasRole(
   userRole: UserRole | null | undefined,
@@ -37,6 +44,8 @@ export function roleLabel(role: UserRole): string {
       return "Manager Requester";
     case "supervisor_requester":
       return "Supervisor Requester";
+    case "logistics_approver":
+      return "Logistics approver";
     case "other_employee":
     default:
       return "Other Employee";
@@ -46,7 +55,9 @@ export function roleLabel(role: UserRole): string {
 /** Public route anyone can use to raise a request without signing in. */
 export const PUBLIC_REQUEST_PATH = "/request";
 
-/** Only admins have a dashboard; everyone else belongs on the public form. */
+/** Admins and logistics approvers use the dashboard. Employees use the public form. */
 export function homePathForRole(role: UserRole): string {
-  return role === "admin" ? "/" : PUBLIC_REQUEST_PATH;
+  return role === "admin" || role === "logistics_approver"
+    ? "/"
+    : PUBLIC_REQUEST_PATH;
 }

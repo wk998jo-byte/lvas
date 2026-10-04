@@ -1,0 +1,72 @@
+[
+  {
+    "fullName": "Waqar Ahmad",
+    "email": "waqar.ahmad@binquraya.com",
+    "badge": "81663",
+    "position": "Logistic Coordinator",
+    "locations": ["*"]
+  },
+  {
+    "fullName": "Muhammad Anees Ejaz",
+    "email": "muhammad.ejaz@binquraya.com",
+    "badge": "11220",
+    "position": "Equipment Coordinator",
+    "locations": ["*"]
+  },
+  {
+    "fullName": "Hermes Jr. Gateren Rosalejos",
+    "email": "hermes.rosalejos@binquraya.com",
+    "badge": "9146",
+    "position": "Document Controller",
+    "locations": ["Facility"]
+  },
+  {
+    "fullName": "Mohammad Irphan Ansari",
+    "email": "mohammed.ansari@binquraya.com",
+    "badge": "81337",
+    "position": "Logistic Supervisor",
+    "locations": ["Fabshop-Salasil"]
+  },
+  {
+    "fullName": "Muhammad Ali Muhammad Ijaz",
+    "email": "muhammad.ali@binquraya.com",
+    "badge": "11027",
+    "position": "Logistic Supervisor",
+    "locations": ["Jafurah"]
+  },
+  {
+    "fullName": "Taalam Khan",
+    "email": "taalam.khan@binquraya.com",
+    "badge": "8627",
+    "position": "Logistic Coordinator",
+    "locations": ["MGS"]
+  },
+  {
+    "fullName": "Alyas Hussain Shah",
+    "email": "alyas.shah@binquraya.com",
+    "badge": "8970",
+    "position": "Logistic Supervisor",
+    "locations": ["Rastanura"]
+  },
+  {
+    "fullName": "Aiyan Rasool",
+    "email": "aiyan.rasool@binquraya.com",
+    "badge": "81732",
+    "position": "Logistic Coordinator",
+    "locations": ["Yanbu"]
+  },
+  {
+    "fullName": "Raj Kumar Singh",
+    "email": "raj.singh@binquraya.com",
+    "badge": "81339",
+    "position": "Logistic Coordinator",
+    "locations": ["Yanbu"]
+  },
+  {
+    "fullName": "Yusuf Jameel",
+    "email": "yusuf.jameel@binquraya.com",
+    "badge": "81386",
+    "position": "Logistic Coordinator",
+    "locations": ["Zuluf"]
+  }
+]

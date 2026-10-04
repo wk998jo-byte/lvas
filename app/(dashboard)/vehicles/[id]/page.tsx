@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { requireUser } from "@/lib/auth/guards";
+import { requireRole } from "@/lib/auth/guards";
 import { getVehicleById } from "@/lib/db/queries";
 import { VehicleDetailView } from "@/components/vehicles/vehicle-detail";
 
@@ -11,7 +11,7 @@ export default async function VehicleDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireUser();
+  await requireRole("admin");
   const { id } = await params;
 
   let vehicle;

@@ -26,6 +26,7 @@ import { EndAuthorizationAction } from "@/components/approvals/end-authorization
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { ExportCsvButton } from "@/components/export/export-csv-button";
 import { AuthorizationStatusBadge } from "@/components/authorizations/status-badge";
+import { pendingStageLabel } from "@/lib/approvals/logistics-team";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -87,7 +88,22 @@ const MODE_FILTERS: Record<TableMode, { key: FilterKey; label: string }[]> = {
 type ApprovalsTableProps = {
   requests: ApprovalListItem[];
   mode?: TableMode;
+  /** Ending an approved authorization stays with the admin. */
+  canEndAuthorization?: boolean;
 };
+
+function overlapsExportPeriod(
+  startDate: string,
+  endDate: string,
+  from: string,
+  to: string,
+) {
+  const start = startDate.slice(0, 10);
+  const end = endDate.slice(0, 10);
+  if (from && end < from) return false;
+  if (to && start > to) return false;
+  return true;
+}
 
 function formatDate(value: string) {
   try {
@@ -113,9 +129,12 @@ function initials(name?: string | null, email?: string | null) {
 export function ApprovalsTable({
   requests,
   mode = "queue",
+  canEndAuthorization = false,
 }: ApprovalsTableProps) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [pending, startTransition] = useTransition();
@@ -162,7 +181,8 @@ export function ApprovalsTable({
       const plate = request.vehicles?.plate_number?.toLowerCase() ?? "";
       const vehicle =
         `${request.vehicles?.make ?? ""} ${request.vehicles?.model ?? ""}`.toLowerCase();
-      const purpose = (request.purpose ?? "").toLowerCase();
+      const purpose = (request.justification ?? request.purpose ?? "").toLowerCase();
+      const location = (request.location ?? "").toLowerCase();
 
       return (
         requesterName.includes(q) ||
@@ -171,10 +191,32 @@ export function ApprovalsTable({
         badge.includes(q) ||
         plate.includes(q) ||
         vehicle.includes(q) ||
-        purpose.includes(q)
+        purpose.includes(q) ||
+        location.includes(q)
       );
     });
   }, [requests, query, filter, saudiToday]);
+
+  const periodInvalid = Boolean(
+    exportFrom && exportTo && exportFrom > exportTo,
+  );
+  const exportRows = useMemo(
+    () =>
+      filtered.filter((request) =>
+        overlapsExportPeriod(
+          request.start_date,
+          request.end_date,
+          exportFrom,
+          exportTo,
+        ),
+      ),
+    [filtered, exportFrom, exportTo],
+  );
+  const exportFilename = `lvas-${mode === "queue" ? "pending" : "history"}-${
+    exportFrom || exportTo
+      ? `${exportFrom || "start"}-to-${exportTo || "end"}`
+      : new Date().toISOString().slice(0, 10)
+  }.csv`;
 
   function onApprove(id: string) {
     startTransition(async () => {
@@ -223,16 +265,37 @@ export function ApprovalsTable({
               className="h-11 rounded-xl border-slate-200/80 bg-white/90 pl-10"
             />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-end gap-2">
             <p className="text-sm text-slate-500">
               Showing{" "}
               <span className="font-semibold text-slate-800">
                 {filtered.length}
               </span>
             </p>
+            <label className="flex flex-col gap-1 text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
+              From
+              <Input
+                type="date"
+                value={exportFrom}
+                onChange={(event) => setExportFrom(event.target.value)}
+                className="h-9 w-[9.5rem] rounded-xl"
+                aria-label="Export from date"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
+              To
+              <Input
+                type="date"
+                value={exportTo}
+                onChange={(event) => setExportTo(event.target.value)}
+                className="h-9 w-[9.5rem] rounded-xl"
+                aria-label="Export to date"
+              />
+            </label>
             <ExportCsvButton
-              filename={`lvas-${mode === "queue" ? "pending" : "history"}-${new Date().toISOString().slice(0, 10)}.csv`}
-              rows={filtered.map((request) => {
+              filename={exportFilename}
+              disabled={periodInvalid}
+              rows={exportRows.map((request) => {
                 const person = resolveRequester({
                   profile: request.requester,
                   employee: request.employees,
@@ -266,6 +329,16 @@ export function ApprovalsTable({
               })}
             />
           </div>
+          {periodInvalid ? (
+            <p className="text-sm text-destructive" role="alert">
+              The start date is after the end date.
+            </p>
+          ) : exportFrom || exportTo ? (
+            <p className="text-sm text-slate-500">
+              Export includes {exportRows.length} request
+              {exportRows.length === 1 ? "" : "s"} in this period.
+            </p>
+          ) : null}
         </div>
 
         <div
@@ -372,7 +445,14 @@ export function ApprovalsTable({
                         <h3 className="truncate text-lg font-semibold tracking-tight text-slate-900">
                           {requester.name}
                         </h3>
-                        <AuthorizationStatusBadge status={status} />
+                        <AuthorizationStatusBadge
+                          status={status}
+                          label={
+                            status === "pending"
+                              ? pendingStageLabel(request.approval_stage)
+                              : undefined
+                          }
+                        />
                         {requester.badge ? (
                           <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
                             Badge {requester.badge}
@@ -400,9 +480,12 @@ export function ApprovalsTable({
                         </span>
                         <span className="text-slate-600">{model}</span>
                       </div>
-                      {request.purpose ? (
-                        <p className="line-clamp-1 text-sm text-slate-500">
-                          {request.purpose}
+                      {request.location ? (
+                        <p className="text-sm text-slate-600">{request.location}</p>
+                      ) : null}
+                      {request.justification || request.purpose ? (
+                        <p className="line-clamp-2 text-sm text-slate-500">
+                          {request.justification ?? request.purpose}
                         </p>
                       ) : null}
                       {isPending && conflict ? (
@@ -440,7 +523,7 @@ export function ApprovalsTable({
                         </Button>
                       </>
                     ) : null}
-                    {isApproved ? (
+                    {isApproved && canEndAuthorization ? (
                       <EndAuthorizationAction authorizationId={request.id} />
                     ) : null}
                     <Button

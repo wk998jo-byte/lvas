@@ -1,4 +1,4 @@
-import { execute, query, queryOne } from "@/lib/db/pool";
+import { execute, getPool, query, queryOne } from "@/lib/db/pool";
 import type {
   Authorization,
   AuthorizationStatus,
@@ -55,13 +55,16 @@ export type AuthorizationDetailRow = Authorization & {
   requester: RequesterProfileRef;
   employees: RequesterEmployeeRef;
   approver: Pick<Profile, "full_name" | "email" | "department"> | null;
+  first_approver: Pick<Profile, "full_name" | "email"> | null;
 };
 
 const AUTHORIZATION_LIST_SELECT = `
   a.id, a.vehicle_id, a.requester_id, a.employee_id, a.public_token,
   a.contact_mobile, a.approver_id, a.status, a.start_date::text as start_date,
   a.end_date::text as end_date, a.duration_label, a.usage_after::text as usage_after,
-  a.purpose, a.rejection_reason, a.approved_at, a.rejected_at, a.created_at, a.updated_at,
+  a.purpose, a.rejection_reason, a.location, a.justification, a.approval_stage,
+  a.first_approver_id, a.first_approved_at, a.approved_at, a.rejected_at,
+  a.created_at, a.updated_at,
   case when v.id is null then null else jsonb_build_object(
     'plate_number', v.plate_number, 'make', v.make, 'model', v.model
   ) end as vehicles,
@@ -205,6 +208,8 @@ export type BadgeAuthorizationRow = {
   duration_label: string;
   purpose: string | null;
   rejection_reason: string | null;
+  location: string | null;
+  approval_stage: number;
   created_at: string;
   plate_number: string | null;
   make: string | null;
@@ -225,6 +230,8 @@ export async function listAuthorizationsByEmployeeId(
         a.duration_label,
         a.purpose,
         a.rejection_reason,
+        a.location,
+        a.approval_stage,
         a.created_at,
         v.plate_number,
         v.make,
@@ -347,6 +354,96 @@ export async function setProfilePasswordHash(id: string, passwordHash: string) {
   ]);
 }
 
+let passwordResetTableReady: Promise<void> | null = null;
+
+function ensurePasswordResetTable(): Promise<void> {
+  passwordResetTableReady ??= query(`
+    create table if not exists password_reset_tokens (
+      id uuid primary key default gen_random_uuid(),
+      profile_id uuid not null references profiles (id) on delete cascade,
+      token_hash text not null,
+      expires_at timestamptz not null,
+      used_at timestamptz,
+      created_at timestamptz not null default timezone('utc', now()),
+      constraint password_reset_tokens_token_hash_unique unique (token_hash)
+    )
+  `).then(() => undefined);
+  return passwordResetTableReady;
+}
+
+export async function replacePasswordResetToken(input: {
+  profileId: string;
+  tokenHash: string;
+  expiresAt: string;
+}) {
+  await ensurePasswordResetTable();
+  await query(
+    `delete from password_reset_tokens where profile_id = $1 and used_at is null`,
+    [input.profileId],
+  );
+  await query(
+    `
+      insert into password_reset_tokens (profile_id, token_hash, expires_at)
+      values ($1, $2, $3)
+    `,
+    [input.profileId, input.tokenHash, input.expiresAt],
+  );
+}
+
+export async function resetPasswordWithTokenHash(input: {
+  tokenHash: string;
+  passwordHash: string;
+}): Promise<boolean> {
+  await ensurePasswordResetTable();
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    const found = await client.query<{ profile_id: string }>(
+      `
+        select profile_id
+        from password_reset_tokens
+        where token_hash = $1
+          and used_at is null
+          and expires_at > timezone('utc', now())
+        for update
+      `,
+      [input.tokenHash],
+    );
+    const profileId = found.rows[0]?.profile_id;
+    if (!profileId) {
+      await client.query("rollback");
+      return false;
+    }
+    await client.query(
+      `update profiles set password_hash = $2 where id = $1`,
+      [profileId, input.passwordHash],
+    );
+    await client.query(
+      `
+        update password_reset_tokens
+        set used_at = timezone('utc', now())
+        where token_hash = $1
+      `,
+      [input.tokenHash],
+    );
+    await client.query(`delete from sessions where profile_id = $1`, [profileId]);
+    await client.query("commit");
+    return true;
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function deleteOtherSessions(profileId: string, currentTokenHash: string) {
+  await query(
+    `delete from sessions where profile_id = $1 and token_hash <> $2`,
+    [profileId, currentTokenHash],
+  );
+}
+
 export async function getLastLimitRequestAt(employeeId: string): Promise<string | null> {
   const row = await queryOne<{ created_at: string }>(
     `
@@ -449,14 +546,17 @@ export async function insertAuthorization(input: {
   usage_after: string;
   purpose: string | null;
   contact_mobile: string;
+  location: string;
+  justification: string;
 }): Promise<{ id: string; public_token: string }> {
   const row = await queryOne<{ id: string; public_token: string }>(
     `
       insert into authorizations (
         vehicle_id, employee_id, requester_id, approver_id, status,
-        start_date, end_date, duration_label, usage_after, purpose, contact_mobile
+        start_date, end_date, duration_label, usage_after, purpose, contact_mobile,
+        location, justification, approval_stage
       )
-      values ($1, $2, null, $3, 'pending', $4, $5, $6, $7, $8, $9)
+      values ($1, $2, null, $3, 'pending', $4, $5, $6, $7, $8, $9, $10, $11, 1)
       returning id, public_token
     `,
     [
@@ -469,6 +569,8 @@ export async function insertAuthorization(input: {
       input.usage_after,
       input.purpose,
       input.contact_mobile,
+      input.location,
+      input.justification,
     ],
   );
   if (!row) throw new Error("Failed to create authorization");
@@ -511,6 +613,7 @@ export async function getAuthorizationById(id: string): Promise<Authorization | 
       select id, vehicle_id, requester_id, employee_id, public_token, contact_mobile,
              approver_id, status, start_date::text as start_date, end_date::text as end_date,
              duration_label, usage_after::text as usage_after, purpose, rejection_reason,
+             location, justification, approval_stage, first_approver_id, first_approved_at,
              approved_at, rejected_at, created_at, updated_at
       from authorizations
       where id = $1
@@ -528,7 +631,9 @@ export async function getAuthorizationDetail(
         a.id, a.vehicle_id, a.requester_id, a.employee_id, a.public_token,
         a.contact_mobile, a.approver_id, a.status, a.start_date::text as start_date,
         a.end_date::text as end_date, a.duration_label, a.usage_after::text as usage_after,
-        a.purpose, a.rejection_reason, a.approved_at, a.rejected_at, a.created_at, a.updated_at,
+        a.purpose, a.rejection_reason, a.location, a.justification, a.approval_stage,
+        a.first_approver_id, a.first_approved_at, a.approved_at, a.rejected_at,
+        a.created_at, a.updated_at,
         case when v.id is null then null else jsonb_build_object(
           'id', v.id, 'plate_number', v.plate_number, 'make', v.make,
           'model', v.model, 'year', v.year, 'color', v.color
@@ -541,12 +646,16 @@ export async function getAuthorizationDetail(
         ) end as employees,
         case when ap.id is null then null else jsonb_build_object(
           'full_name', ap.full_name, 'email', ap.email, 'department', ap.department
-        ) end as approver
+        ) end as approver,
+        case when fp.id is null then null else jsonb_build_object(
+          'full_name', fp.full_name, 'email', fp.email
+        ) end as first_approver
       from authorizations a
       left join vehicles v on v.id = a.vehicle_id
       left join profiles p on p.id = a.requester_id
       left join employees e on e.id = a.employee_id
       left join profiles ap on ap.id = a.approver_id
+      left join profiles fp on fp.id = a.first_approver_id
       where a.id = $1
     `,
     [id],
@@ -563,6 +672,9 @@ export async function getAuthorizationByPublicToken(token: string) {
     usage_after: string;
     purpose: string | null;
     rejection_reason: string | null;
+    location: string | null;
+    justification: string | null;
+    approval_stage: number;
     created_at: string;
     vehicles: Pick<Vehicle, "plate_number" | "make" | "model"> | null;
     employees: Pick<Employee, "full_name" | "badge"> | null;
@@ -571,7 +683,7 @@ export async function getAuthorizationByPublicToken(token: string) {
       select
         a.id, a.status, a.start_date::text as start_date, a.end_date::text as end_date,
         a.duration_label, a.usage_after::text as usage_after, a.purpose,
-        a.rejection_reason, a.created_at,
+        a.rejection_reason, a.location, a.justification, a.approval_stage, a.created_at,
         case when v.id is null then null else jsonb_build_object(
           'plate_number', v.plate_number, 'make', v.make, 'model', v.model
         ) end as vehicles,
@@ -589,7 +701,18 @@ export async function getAuthorizationByPublicToken(token: string) {
 
 export async function listPendingAuthorizations(
   limit = 200,
+  filter?: { stage: number; locations?: string[] },
 ): Promise<AuthorizationListRow[]> {
+  const params: unknown[] = [limit];
+  const clauses = ["a.status = 'pending'"];
+  if (filter) {
+    params.push(filter.stage);
+    clauses.push(`a.approval_stage = $${params.length}`);
+    if (filter.locations) {
+      params.push(filter.locations);
+      clauses.push(`a.location = any($${params.length}::text[])`);
+    }
+  }
   const rows = await query<AuthorizationListRow>(
     `
       select ${AUTHORIZATION_LIST_SELECT}
@@ -597,11 +720,11 @@ export async function listPendingAuthorizations(
       left join vehicles v on v.id = a.vehicle_id
       left join profiles p on p.id = a.requester_id
       left join employees e on e.id = a.employee_id
-      where a.status = 'pending'
+      where ${clauses.join(" and ")}
       order by a.created_at asc
       limit $1
     `,
-    [limit],
+    params,
   );
   const conflicts = await listApprovedOverlapsForPending(rows.map((row) => row.id));
   return rows.map((row) => ({
@@ -694,6 +817,80 @@ export async function countPendingAuthorizations(): Promise<number> {
   return countAuthorizationsByStatus("pending");
 }
 
+export async function countPendingForReview(input: {
+  stage: number;
+  locations?: string[];
+}): Promise<number> {
+  const params: unknown[] = [input.stage];
+  const clauses = ["status = 'pending'", "approval_stage = $1"];
+  if (input.locations) {
+    params.push(input.locations);
+    clauses.push(`location = any($${params.length}::text[])`);
+  }
+  const row = await queryOne<{ count: string }>(
+    `select count(*)::text as count from authorizations where ${clauses.join(" and ")}`,
+    params,
+  );
+  return Number(row?.count ?? 0);
+}
+
+export async function listLocationsForApprover(
+  profileId: string,
+): Promise<string[]> {
+  const rows = await query<{ location: string }>(
+    `
+      select location
+      from logistics_approver_locations
+      where profile_id = $1
+      order by location asc
+    `,
+    [profileId],
+  );
+  return rows.map((row) => row.location);
+}
+
+export async function listLogisticsApproverIdsForLocation(
+  location: string,
+): Promise<string[]> {
+  const rows = await query<{ profile_id: string }>(
+    `
+      select p.id as profile_id
+      from logistics_approver_locations l
+      join profiles p on p.id = l.profile_id
+      where l.location = $1
+        and p.role = 'logistics_approver'
+        and p.is_active = true
+    `,
+    [location],
+  );
+  return rows.map((row) => row.profile_id);
+}
+
+export async function advanceToFinalApproval(input: {
+  id: string;
+  approverId: string;
+  approvedAt: string;
+}): Promise<Authorization | null> {
+  return queryOne<Authorization>(
+    `
+      update authorizations
+      set approval_stage = 2,
+          first_approver_id = $2,
+          first_approved_at = $3
+      where id = $1
+        and status = 'pending'
+        and approval_stage = 1
+      returning
+        id, vehicle_id, requester_id, employee_id, public_token, contact_mobile,
+        approver_id, status, start_date::text as start_date, end_date::text as end_date,
+        duration_label, usage_after::text as usage_after, purpose, rejection_reason,
+        location, justification, approval_stage, first_approver_id, first_approved_at,
+        approved_at, rejected_at, created_at, updated_at
+    `,
+    [input.id, input.approverId, input.approvedAt],
+  );
+}
+
 export async function countApprovedActive(today: string): Promise<number> {
   const row = await queryOne<{ count: string }>(
     `
@@ -743,11 +940,12 @@ export async function approvePendingAuthorization(input: {
           rejected_at = null,
           rejection_reason = null,
           approver_id = $2
-      where id = $1 and status = 'pending'
+      where id = $1 and status = 'pending' and approval_stage = 2
       returning
         id, vehicle_id, requester_id, employee_id, public_token, contact_mobile,
         approver_id, status, start_date::text as start_date, end_date::text as end_date,
         duration_label, usage_after::text as usage_after, purpose, rejection_reason,
+        location, justification, approval_stage, first_approver_id, first_approved_at,
         approved_at, rejected_at, created_at, updated_at
     `,
     [input.id, input.approverId, input.approvedAt],
@@ -766,6 +964,7 @@ export async function cancelApprovedAuthorization(
         id, vehicle_id, requester_id, employee_id, public_token, contact_mobile,
         approver_id, status, start_date::text as start_date, end_date::text as end_date,
         duration_label, usage_after::text as usage_after, purpose, rejection_reason,
+        location, justification, approval_stage, first_approver_id, first_approved_at,
         approved_at, rejected_at, created_at, updated_at
     `,
     [id],
@@ -777,6 +976,7 @@ export async function rejectPendingAuthorization(input: {
   approverId: string;
   rejectedAt: string;
   rejectionReason: string;
+  approvalStage: number;
 }): Promise<Authorization | null> {
   return queryOne<Authorization>(
     `
@@ -786,14 +986,21 @@ export async function rejectPendingAuthorization(input: {
           approved_at = null,
           rejection_reason = $4,
           approver_id = $2
-      where id = $1 and status = 'pending'
+      where id = $1 and status = 'pending' and approval_stage = $5
       returning
         id, vehicle_id, requester_id, employee_id, public_token, contact_mobile,
         approver_id, status, start_date::text as start_date, end_date::text as end_date,
         duration_label, usage_after::text as usage_after, purpose, rejection_reason,
+        location, justification, approval_stage, first_approver_id, first_approved_at,
         approved_at, rejected_at, created_at, updated_at
     `,
-    [input.id, input.approverId, input.rejectedAt, input.rejectionReason],
+    [
+      input.id,
+      input.approverId,
+      input.rejectedAt,
+      input.rejectionReason,
+      input.approvalStage,
+    ],
   );
 }
 
@@ -824,7 +1031,9 @@ export async function listApprovedEndingBetween(input: {
         a.id, a.vehicle_id, a.requester_id, a.employee_id, a.public_token,
         a.contact_mobile, a.approver_id, a.status, a.start_date::text as start_date,
         a.end_date::text as end_date, a.duration_label, a.usage_after::text as usage_after,
-        a.purpose, a.rejection_reason, a.approved_at, a.rejected_at, a.created_at, a.updated_at,
+        a.purpose, a.rejection_reason, a.location, a.justification, a.approval_stage,
+        a.first_approver_id, a.first_approved_at, a.approved_at, a.rejected_at,
+        a.created_at, a.updated_at,
         case when v.id is null then null else jsonb_build_object(
           'plate_number', v.plate_number, 'make', v.make, 'model', v.model
         ) end as vehicles

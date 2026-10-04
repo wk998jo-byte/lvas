@@ -7,8 +7,10 @@ import { requireRole } from "@/lib/auth/guards";
 import { getDashboardKpis } from "@/lib/dashboard/stats";
 import {
   countAuthorizationsByStatus,
+  countPendingForReview,
   listExpiringAuthorizations,
   listInsightAuthorizations,
+  listLocationsForApprover,
   listPendingAuthorizations,
 } from "@/lib/db/queries";
 import { inclusiveDayCount } from "@/lib/dates";
@@ -61,7 +63,14 @@ function vehicleLabel(vehicle: VehicleRef): string {
 }
 
 export default async function DashboardHomePage() {
-  const profile = await requireRole("admin");
+  const profile = await requireRole(["admin", "logistics_approver"]);
+  const isLogistics = profile.role === "logistics_approver";
+  const locations = isLogistics
+    ? await listLocationsForApprover(profile.id)
+    : undefined;
+  const reviewFilter = isLogistics
+    ? { stage: 1, locations: locations ?? [] }
+    : { stage: 2 };
 
   const today = saudiTodayIsoDate();
   const in7Days = addCalendarDays(today, 7);
@@ -79,7 +88,7 @@ export default async function DashboardHomePage() {
     expiredCount,
   ] = await Promise.all([
     getDashboardKpis(),
-    listPendingAuthorizations(200),
+    listPendingAuthorizations(200, reviewFilter),
     listExpiringAuthorizations({ today, in7Days, limit: 6 }),
     listInsightAuthorizations(`${since90Days}T00:00:00.000Z`, 500),
     countAuthorizationsByStatus("pending"),
@@ -124,14 +133,15 @@ export default async function DashboardHomePage() {
           <div className="space-y-3">
             <div className="inline-flex items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-[#e30613] uppercase">
               <Sparkles className="size-3.5" />
-              Admin dashboard
+              {isLogistics ? "Logistics approval" : "Admin dashboard"}
             </div>
             <h1 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">
               Welcome back, {firstName(profile.full_name, profile.email)}
             </h1>
             <p className="max-w-2xl text-sm text-slate-500 md:text-base">
-              Every request waiting on you is below — approve or reject in place,
-              and decided requests move to the history log.
+              {isLogistics
+                ? "These requests are waiting for the first approval at your project locations. After you approve, they go to the final approver."
+                : "These requests already have logistics approval and are waiting for your final decision."}
             </p>
             <p className="text-xs tracking-wide text-slate-400 uppercase">
               {formatDate(today)}
@@ -159,7 +169,13 @@ export default async function DashboardHomePage() {
         </div>
       </section>
 
-      <KpiCards stats={stats} pendingLabel="Awaiting decision" />
+      <KpiCards
+        stats={{
+          ...stats,
+          pendingApprovals: await countPendingForReview(reviewFilter),
+        }}
+        pendingLabel="Awaiting decision"
+      />
 
       {/* Queue with inline decisions */}
       <section className="space-y-3">
@@ -168,7 +184,10 @@ export default async function DashboardHomePage() {
             Requests awaiting decision
           </h2>
           <p className="text-sm text-slate-500">
-            {queue.length} pending · decided requests move to{" "}
+            {queue.length} pending
+            {isLogistics
+              ? " · approve here, then the request goes to final approval · "
+              : " · decided requests move to "}
             <Link
               href="/history"
               className="font-medium text-[#e30613] underline-offset-4 hover:underline"
@@ -177,7 +196,11 @@ export default async function DashboardHomePage() {
             </Link>
           </p>
         </div>
-        <ApprovalsTable requests={queue} mode="queue" />
+        <ApprovalsTable
+          requests={queue}
+          mode="queue"
+          canEndAuthorization={!isLogistics}
+        />
       </section>
 
       <div className="grid gap-5 xl:grid-cols-3">

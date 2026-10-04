@@ -25,6 +25,7 @@ import {
   verifyEmployee,
   type PublicEmployee,
 } from "@/actions/public-requests";
+import { PROJECT_LOCATIONS } from "@/lib/approvals/logistics-team";
 import {
   durationExceedsLimit,
   durationLimitMessage,
@@ -315,7 +316,8 @@ function DetailsStep({
     formatDurationLabel(saudiTodayIsoDate(), saudiTodayIsoDate()),
   );
   const [mobile, setMobile] = useState("");
-  const [purpose, setPurpose] = useState("");
+  const [location, setLocation] = useState("");
+  const [justification, setJustification] = useState("");
 
   const computedDuration = useMemo(
     () => formatDurationLabel(startDate, endDate),
@@ -364,7 +366,9 @@ function DetailsStep({
         start_date: startDate,
         end_date: endDate,
         duration_label: durationLabel || computedDuration,
-        purpose,
+        purpose: justification,
+        location,
+        justification,
         contact_mobile: mobile,
       });
 
@@ -598,15 +602,39 @@ function DetailsStep({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="purpose">Purpose (optional)</Label>
-          <Textarea
-            id="purpose"
-            value={purpose}
+          <Label htmlFor="location">Project location</Label>
+          <select
+            id="location"
+            required
+            value={location}
             disabled={pending}
-            onChange={(e) => setPurpose(e.target.value)}
-            placeholder="Brief reason for the authorization"
+            className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+            onChange={(event) => setLocation(event.target.value)}
+          >
+            <option value="">Select your project location</option>
+            {PROJECT_LOCATIONS.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="justification">Justification</Label>
+          <Textarea
+            id="justification"
+            required
+            minLength={10}
+            value={justification}
+            disabled={pending}
+            onChange={(e) => setJustification(e.target.value)}
+            placeholder="Why do you need this vehicle?"
             className="min-h-24 rounded-xl border-slate-200 bg-white"
           />
+          <p className="text-xs text-slate-500">
+            Required. Explain why the vehicle is needed.
+          </p>
         </div>
 
         {error ? (

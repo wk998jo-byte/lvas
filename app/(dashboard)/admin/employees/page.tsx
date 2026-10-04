@@ -163,6 +163,7 @@ export default async function AdminEmployeesPage({
           manager_requester: managerCount,
           supervisor_requester: supervisorCount,
           other_employee: otherCount,
+          logistics_approver: 0,
           admin: 0,
         }}
       />

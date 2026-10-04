@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { KeyRound, LogOut } from "lucide-react";
 import { toast } from "sonner";
 
 import { signOut } from "@/actions/auth";
@@ -87,6 +88,15 @@ export function UserMenu({ profile }: { profile: Profile }) {
             </p>
           </div>
           <div className="-mx-1 my-1 h-px bg-border" />
+          <Link
+            href="/account/password"
+            role="menuitem"
+            className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-sm outline-hidden select-none hover:bg-muted"
+            onClick={() => setOpen(false)}
+          >
+            <KeyRound className="size-4" />
+            Change password
+          </Link>
           <button
             type="button"
             role="menuitem"

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { signInWithPassword } from "@/actions/auth";
@@ -20,6 +21,7 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(() =>
     sessionError ? "Session check failed. Sign in again." : null,
   );
+  const passwordReset = searchParams.get("reset") === "1";
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -109,6 +111,19 @@ export function LoginForm() {
               className="glass-input h-11 rounded-xl"
             />
           </div>
+          <div className="text-right">
+            <Link
+              href="/forgot-password"
+              className="text-sm font-medium text-[#e30613] underline-offset-4 hover:underline"
+            >
+              Forgot password?
+            </Link>
+          </div>
+          {passwordReset ? (
+            <p className="text-sm text-emerald-700" role="status">
+              Password updated. Sign in with your new password.
+            </p>
+          ) : null}
           {error ? (
             <p className="text-sm text-rose-600" role="alert">
               {error}

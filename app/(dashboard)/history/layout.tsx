@@ -5,6 +5,6 @@ export default async function HistoryLayout({
 }: {
   children: React.ReactNode;
 }) {
-  await requireRole("admin");
+  await requireRole(["admin", "logistics_approver"]);
   return children;
 }
