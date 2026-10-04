@@ -1,6 +1,10 @@
 /**
- * Add logistics first-approver accounts and the two-stage request columns.
+ * Add logistics first-approver accounts and location assignments.
+ * Safe to re-run: existing non-null password hashes are never overwritten.
  * Does not print the password.
+ *
+ * Apply db/migrations/20261004_logistics_two_stage_approval.sql first on an
+ * existing Replit database. Do not re-import the backup or re-bootstrap admin.
  *
  * Requires DATABASE_URL and LOGISTICS_APPROVER_PASSWORD.
  * Usage: node scripts/bootstrap-logistics-approvers.mjs
@@ -98,7 +102,7 @@ try {
           role = 'logistics_approver',
           department = excluded.department,
           is_active = true,
-          password_hash = excluded.password_hash
+          password_hash = coalesce(profiles.password_hash, excluded.password_hash)
         returning id
       `,
       [person.fullName, email, person.position, passwordHash],

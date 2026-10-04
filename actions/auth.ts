@@ -207,7 +207,6 @@ export async function requestPasswordReset(
     const resetUrl = `${resetBaseUrl(headerStore)}/reset-password/${token}`;
 
     if (!isPasswordResetEmailConfigured()) {
-      console.info(`LVAS password reset link: ${resetUrl}`);
       return notConfigured;
     }
 
