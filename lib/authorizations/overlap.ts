@@ -5,6 +5,10 @@ export type ActiveAuthorizationConflict = {
   end_date: string;
 };
 
+export type VisibleAuthorizationConflict =
+  | ActiveAuthorizationConflict
+  | { restricted: true };
+
 /**
  * True when [startA, endA] overlaps [startB, endB] (inclusive date ranges).
  */

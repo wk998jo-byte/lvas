@@ -15,17 +15,10 @@ export type PublicPassData = {
   startDate: string;
   endDate: string;
   usageAfter: string;
+  verificationUrl: string | null;
 };
 
 export function PublicPass({ pass }: { pass: PublicPassData }) {
-  const payload = [
-    "LVAS-PASS",
-    `id=${pass.id}`,
-    `plate=${pass.plate}`,
-    `driver=${pass.driver}`,
-    `expires=${pass.endDate}`,
-  ].join("|");
-
   return (
     <div className="space-y-3">
       <Button
@@ -65,16 +58,23 @@ export function PublicPass({ pass }: { pass: PublicPassData }) {
           </div>
 
           <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
-            <QRCodeSVG value={payload} size={120} level="M" includeMargin />
+            {pass.verificationUrl ? (
+              <QRCodeSVG value={pass.verificationUrl} size={120} level="M" includeMargin />
+            ) : (
+              <p role="alert" className="text-center text-xs font-semibold text-red-700">
+                Live QR verification is unavailable. Contact the fleet administrator.
+              </p>
+            )}
             <p className="text-center text-[10px] text-slate-500">
-              Scan at company gate
+              Scan for live gate verification
             </p>
           </div>
         </div>
 
         <div className="border-t border-slate-200 bg-slate-50 px-4 py-2 text-[11px] text-slate-500">
           LVAS | Bin Quraya — after-hours light vehicle authorization. Present
-          this pass with company ID.
+          this pass with company ID. Security must scan the QR to confirm current
+          validity before entry.
         </div>
       </div>
     </div>

@@ -13,6 +13,7 @@ export async function updateSession(request: NextRequest) {
     pathname === "/request" ||
     pathname.startsWith("/request/") ||
     pathname.startsWith("/track") ||
+    pathname.startsWith("/verify/") ||
     pathname === "/status" ||
     pathname.startsWith("/status/");
   const isPublicAsset =
@@ -33,5 +34,11 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  return NextResponse.next({ request });
+  const response = NextResponse.next({ request });
+  if (pathname.startsWith("/verify/")) {
+    response.headers.set("Cache-Control", "private, no-store, max-age=0, must-revalidate");
+    response.headers.set("Referrer-Policy", "no-referrer");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+  }
+  return response;
 }

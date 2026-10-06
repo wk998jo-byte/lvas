@@ -1,3 +1,4 @@
+import { consumeRateLimit, TOO_MANY_ATTEMPTS, SAFE_REQUEST_ERROR } from "@/lib/security/rate-limit";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ClipboardList, Copy } from "lucide-react";
@@ -10,6 +11,7 @@ import { effectiveAuthorizationStatus } from "@/lib/authorizations/effective-sta
 import { saudiTodayIsoDate } from "@/lib/business-date";
 import { getAuthorizationByPublicToken } from "@/lib/db/queries";
 import { publicTokenSchema } from "@/lib/validations";
+import { buildGateVerificationUrl } from "@/lib/authorizations/gate-url";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +32,15 @@ export default async function TrackRequestPage({
   const parsed = publicTokenSchema.safeParse({ token });
   if (!parsed.success) notFound();
 
-  const request = await getAuthorizationByPublicToken(parsed.data.token);
+  if (!(await consumeRateLimit("tokenTracking")).allowed) {
+    return <p role="alert">{TOO_MANY_ATTEMPTS}</p>;
+  }
+  let request;
+  try {
+    request = await getAuthorizationByPublicToken(parsed.data.token);
+  } catch {
+    return <p role="alert">{SAFE_REQUEST_ERROR}</p>;
+  }
 
   if (!request) notFound();
 
@@ -139,6 +149,7 @@ export default async function TrackRequestPage({
             startDate: request.start_date,
             endDate: request.end_date,
             usageAfter: String(usageAfter),
+            verificationUrl: buildGateVerificationUrl(parsed.data.token),
           }}
         />
       ) : null}

@@ -50,7 +50,7 @@ import {
 } from "@/lib/authorizations/effective-status";
 import { saudiTodayIsoDate } from "@/lib/business-date";
 import { cn } from "@/lib/utils";
-import type { ActiveAuthorizationConflict } from "@/lib/authorizations/overlap";
+import type { VisibleAuthorizationConflict } from "@/lib/authorizations/overlap";
 import type {
   Authorization,
   Vehicle,
@@ -60,7 +60,7 @@ export type ApprovalListItem = Authorization & {
   vehicles: Pick<Vehicle, "plate_number" | "make" | "model"> | null;
   requester: RequesterProfileRef;
   employees: RequesterEmployeeRef;
-  activeConflict?: ActiveAuthorizationConflict | null;
+  activeConflict?: VisibleAuthorizationConflict | null;
 };
 
 type FilterKey =

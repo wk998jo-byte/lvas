@@ -16,9 +16,7 @@ import {
   isOnOrAfterSaudiToday,
 } from "@/lib/business-date";
 import {
-  isCheckViolation,
   isOverlapViolation,
-  pgErrorMessage,
 } from "@/lib/db/pool";
 import {
   getEmployeeByBadge,
@@ -39,6 +37,12 @@ import {
   employeeVerifySchema,
   publicRequestSchema,
 } from "@/lib/validations";
+import {
+  consumeRateLimit,
+  refundSuccessfulAttempt,
+  SAFE_REQUEST_ERROR,
+  TOO_MANY_ATTEMPTS,
+} from "@/lib/security/rate-limit";
 
 export type { PublicEmployee };
 
@@ -60,10 +64,11 @@ export async function lookupEmployees(
   if (term.length < 3) return ok([]);
 
   try {
+    if (!(await consumeRateLimit("employeeSearch")).allowed) return fail(TOO_MANY_ATTEMPTS);
     const data = await lookupPublicEmployees(term, LOOKUP_LIMIT);
     return ok(data);
-  } catch (error) {
-    return fail(pgErrorMessage(error));
+  } catch {
+    return fail(SAFE_REQUEST_ERROR);
   }
 }
 
@@ -75,35 +80,39 @@ export async function verifyEmployee(
     return fail(parsed.error.issues[0]?.message ?? "Invalid verification");
   }
 
-  const employee = await findVerifiedEmployee(
-    parsed.data.employee_id,
-    parsed.data.id_last4,
-  );
-  if (!employee) {
-    return fail("The last 4 digits do not match this employee record.");
-  }
-
-  return ok(employee);
+  return findVerifiedEmployee({ employeeId: parsed.data.employee_id, idLast4: parsed.data.id_last4 });
 }
 
 async function findVerifiedEmployee(
-  employeeId: string,
-  idLast4: string,
-): Promise<PublicEmployee | null> {
-  const data = await getEmployeeForVerify(employeeId);
-  if (!data) return null;
+  input: { employeeId?: string; badge?: string; idLast4: string },
+): Promise<ActionResult<PublicEmployee>> {
+  try {
+    if (!(await consumeRateLimit("identityNetwork")).allowed) return fail(TOO_MANY_ATTEMPTS);
+    const data = input.employeeId
+      ? await getEmployeeForVerify(input.employeeId)
+      : await getEmployeeByBadge(input.badge!);
+    // One shared badge budget across verification, submission and tracking;
+    // neither endpoint-switching nor IP rotation resets the failure limit.
+    const permit = await consumeRateLimit("identity", data?.badge ?? input.employeeId ?? input.badge);
+    if (!permit.allowed) return fail(TOO_MANY_ATTEMPTS);
 
-  const digits = (data.national_id ?? "").replace(/\D/g, "");
-  if (digits.length < 4 || digits.slice(-4) !== idLast4) return null;
+    const digits = (data?.national_id ?? "").replace(/\D/g, "");
+    if (!data || digits.length < 4 || digits.slice(-4) !== input.idLast4) {
+      return fail("Employee details and ID digits do not match.");
+    }
 
-  return {
-    id: data.id,
-    badge: data.badge,
-    full_name: data.full_name,
-    department: data.department,
-    position: data.position,
-    role: data.role,
-  };
+    await refundSuccessfulAttempt(permit);
+    return ok({
+      id: data.id,
+      badge: data.badge,
+      full_name: data.full_name,
+      department: data.department,
+      position: data.position,
+      role: data.role,
+    });
+  } catch {
+    return fail(SAFE_REQUEST_ERROR);
+  }
 }
 
 export type PublicRequestReceipt = {
@@ -119,28 +128,28 @@ export async function submitPublicRequest(
     return fail(parsed.error.issues[0]?.message ?? "Invalid request data");
   }
 
-  const employee = await findVerifiedEmployee(
-    parsed.data.employee_id,
-    parsed.data.id_last4,
-  );
-  if (!employee) {
-    return fail("The last 4 digits do not match this employee record.");
-  }
+  const verified = await findVerifiedEmployee({ employeeId: parsed.data.employee_id, idLast4: parsed.data.id_last4 });
+  if (!verified.ok) return verified;
+  const employee = verified.data;
 
   if (!isOnOrAfterSaudiToday(parsed.data.start_date)) {
     return fail("Start date cannot be before today.");
   }
 
-  const approverId = await getDefaultApproverId();
+  let approverId: string | null;
+  let logisticsApproverIds: string[];
+  try {
+    approverId = await getDefaultApproverId();
+    logisticsApproverIds = await listLogisticsApproverIdsForLocation(parsed.data.location);
+  } catch {
+    return fail(SAFE_REQUEST_ERROR);
+  }
   if (!approverId) {
     return fail(
       "No approver is configured yet. Contact the fleet administrator.",
     );
   }
 
-  const logisticsApproverIds = await listLogisticsApproverIdsForLocation(
-    parsed.data.location,
-  );
   if (logisticsApproverIds.length === 0) {
     return fail(
       "No logistics approver is configured for this location. Contact the fleet administrator.",
@@ -163,8 +172,8 @@ export async function submitPublicRequest(
           return fail(cooldownMessage(limit, nextAllowedAt));
         }
       }
-    } catch (error) {
-      return fail(pgErrorMessage(error));
+    } catch {
+      return fail(SAFE_REQUEST_ERROR);
     }
   }
 
@@ -173,8 +182,8 @@ export async function submitPublicRequest(
     if (!vehicle || !vehicle.is_active) {
       return fail("Selected vehicle is not available");
     }
-  } catch (error) {
-    return fail(pgErrorMessage(error));
+  } catch {
+    return fail(SAFE_REQUEST_ERROR);
   }
 
   try {
@@ -216,10 +225,7 @@ export async function submitPublicRequest(
         "Vehicle has an active authorization for those dates. Choose different dates or another vehicle.",
       );
     }
-    if (isCheckViolation(error)) {
-      return fail(pgErrorMessage(error));
-    }
-    return fail(pgErrorMessage(error));
+    return fail(SAFE_REQUEST_ERROR);
   }
 }
 
@@ -252,35 +258,31 @@ export async function lookupRequestsByBadge(
     return fail(parsed.error.issues[0]?.message ?? "Invalid lookup");
   }
 
-  const employee = await getEmployeeByBadge(parsed.data.badge);
-  const digits = (employee?.national_id ?? "").replace(/\D/g, "");
-  const matches =
-    employee !== null &&
-    digits.length >= 4 &&
-    digits.slice(-4) === parsed.data.id_last4;
-
-  if (!employee || !matches) {
-    return fail("Badge number and ID digits do not match.");
+  const verified = await findVerifiedEmployee({ badge: parsed.data.badge, idLast4: parsed.data.id_last4 });
+  if (!verified.ok) return verified;
+  const employee = verified.data;
+  try {
+    const rows = await listAuthorizationsByEmployeeId(employee.id);
+    return ok({
+      fullName: employee.full_name,
+      badge: employee.badge,
+      requests: rows.map((row) => ({
+        token: row.public_token,
+        reference: row.id.slice(0, 8).toUpperCase(),
+        status: row.status,
+        startDate: row.start_date.slice(0, 10),
+        endDate: row.end_date.slice(0, 10),
+        durationLabel: row.duration_label,
+        purpose: row.purpose,
+        rejectionReason: row.rejection_reason,
+        location: row.location,
+        approvalStage: row.approval_stage,
+        plate: row.plate_number,
+        vehicle:
+          row.make && row.model ? `${row.make} ${row.model}` : null,
+      })),
+    });
+  } catch {
+    return fail(SAFE_REQUEST_ERROR);
   }
-
-  const rows = await listAuthorizationsByEmployeeId(employee.id);
-  return ok({
-    fullName: employee.full_name,
-    badge: employee.badge,
-    requests: rows.map((row) => ({
-      token: row.public_token,
-      reference: row.id.slice(0, 8).toUpperCase(),
-      status: row.status,
-      startDate: row.start_date.slice(0, 10),
-      endDate: row.end_date.slice(0, 10),
-      durationLabel: row.duration_label,
-      purpose: row.purpose,
-      rejectionReason: row.rejection_reason,
-      location: row.location,
-      approvalStage: row.approval_stage,
-      plate: row.plate_number,
-      vehicle:
-        row.make && row.model ? `${row.make} ${row.model}` : null,
-    })),
-  });
 }

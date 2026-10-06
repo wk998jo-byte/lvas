@@ -22,25 +22,12 @@ function one<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-function buildPassPayload(input: {
-  id: string;
-  plate: string;
-  driver: string;
-  expiry: string;
-}) {
-  return [
-    "LVAS-PASS",
-    `id=${input.id}`,
-    `plate=${input.plate}`,
-    `driver=${input.driver}`,
-    `expires=${input.expiry}`,
-  ].join("|");
-}
-
 export function DigitalAuthorizationPass({
   request,
+  verificationUrl,
 }: {
   request: AuthorizationDetailData;
+  verificationUrl: string | null;
 }) {
   const passRef = useRef<HTMLDivElement>(null);
   const vehicle = one(request.vehicles);
@@ -51,12 +38,6 @@ export function DigitalAuthorizationPass({
   });
   const plate = vehicle?.plate_number ?? "UNKNOWN";
   const driver = requester.name;
-  const payload = buildPassPayload({
-    id: request.id,
-    plate,
-    driver,
-    expiry: request.end_date,
-  });
 
   if (!isEffectivelyApproved(request.status, request.end_date)) return null;
 
@@ -167,16 +148,23 @@ export function DigitalAuthorizationPass({
             </div>
 
             <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
-              <QRCodeSVG value={payload} size={120} level="M" includeMargin />
+              {verificationUrl ? (
+                <QRCodeSVG value={verificationUrl} size={120} level="M" includeMargin />
+              ) : (
+                <p role="alert" className="text-center text-xs font-semibold text-red-700">
+                  Live QR verification is unavailable. Contact the fleet administrator.
+                </p>
+              )}
               <p className="text-center text-[10px] text-slate-500">
-                Scan at company gate
+                Scan for live gate verification
               </p>
             </div>
           </div>
 
           <div className="border-t border-slate-200 bg-slate-50 px-4 py-2 text-[11px] text-slate-500">
             LVAS | Bin Quraya — After-hours light vehicle authorization. Present
-            this pass with company ID.
+            this pass with company ID. Security must scan the QR to confirm
+            current validity before entry.
           </div>
         </div>
       </CardContent>

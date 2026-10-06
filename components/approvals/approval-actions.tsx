@@ -10,7 +10,7 @@ import {
 } from "@/actions/approvals";
 import { ActiveAuthorizationNotice } from "@/components/approvals/active-authorization-notice";
 import { Button } from "@/components/ui/button";
-import type { ActiveAuthorizationConflict } from "@/lib/authorizations/overlap";
+import type { VisibleAuthorizationConflict } from "@/lib/authorizations/overlap";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 type ApprovalActionsProps = {
   authorizationId: string;
-  conflict?: ActiveAuthorizationConflict | null;
+  conflict?: VisibleAuthorizationConflict | null;
 };
 
 export function ApprovalActions({
