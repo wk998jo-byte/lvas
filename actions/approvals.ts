@@ -35,6 +35,16 @@ async function vehicleLabel(vehicleId: string): Promise<string> {
   return data?.plate_number ?? "vehicle";
 }
 
+// The conditional decision UPDATE has already committed. Notification preparation
+// and delivery must never turn that saved decision into a reported failure.
+async function notifyAfterDecision(deliver: () => Promise<void>): Promise<void> {
+  try {
+    await deliver();
+  } catch {
+    console.warn("LVAS decision notification delivery failed");
+  }
+}
+
 async function notifyRequester(input: {
   userId: string | null;
   authorizationId: string;
@@ -86,18 +96,20 @@ export async function approveAuthorization(
       });
       if (!data) return fail("Only a first-stage request can be approved");
 
-      const plate = await vehicleLabel(data.vehicle_id);
-      const finalApproverId =
-        data.approver_id ?? (await getDefaultApproverId());
-      if (finalApproverId) {
-        await insertNotification({
-          user_id: finalApproverId,
-          authorization_id: data.id,
-          type: "request_submitted",
-          title: "Request ready for final approval",
-          body: `${plate} (${data.start_date} → ${data.end_date}) at ${data.location ?? "the project"} was approved by logistics and is waiting for final approval.`,
-        });
-      }
+      await notifyAfterDecision(async () => {
+        const plate = await vehicleLabel(data.vehicle_id);
+        const finalApproverId =
+          data.approver_id ?? (await getDefaultApproverId());
+        if (finalApproverId) {
+          await insertNotification({
+            user_id: finalApproverId,
+            authorization_id: data.id,
+            type: "request_submitted",
+            title: "Request ready for final approval",
+            body: `${plate} (${data.start_date} → ${data.end_date}) at ${data.location ?? "the project"} was approved by logistics and is waiting for final approval.`,
+          });
+        }
+      });
 
       revalidateApprovalPaths(data.id);
       return ok(data);
@@ -124,13 +136,15 @@ export async function approveAuthorization(
     });
     if (!data) return fail("Only pending requests can be approved");
 
-    const plate = await vehicleLabel(data.vehicle_id);
-    await notifyRequester({
-      userId: data.requester_id,
-      authorizationId: data.id,
-      type: "request_approved",
-      title: "Authorization approved",
-      body: `Your request for ${plate} (${data.start_date} → ${data.end_date}) was approved.`,
+    await notifyAfterDecision(async () => {
+      const plate = await vehicleLabel(data.vehicle_id);
+      await notifyRequester({
+        userId: data.requester_id,
+        authorizationId: data.id,
+        type: "request_approved",
+        title: "Authorization approved",
+        body: `Your request for ${plate} (${data.start_date} → ${data.end_date}) was approved.`,
+      });
     });
 
     revalidateApprovalPaths(data.id);
@@ -141,7 +155,7 @@ export async function approveAuthorization(
         "Vehicle has an active authorization for overlapping dates.",
       );
     }
-    return fail(pgErrorMessage(error));
+    return fail("Unable to approve this request. Please try again.");
   }
 }
 
@@ -181,19 +195,21 @@ export async function rejectAuthorization(
     });
     if (!data) return fail("Only pending requests can be rejected");
 
-    const plate = await vehicleLabel(data.vehicle_id);
-    await notifyRequester({
-      userId: data.requester_id,
-      authorizationId: data.id,
-      type: "request_rejected",
-      title: "Authorization rejected",
-      body: `Your request for ${plate} was rejected: ${parsed.data.rejection_reason}`,
+    await notifyAfterDecision(async () => {
+      const plate = await vehicleLabel(data.vehicle_id);
+      await notifyRequester({
+        userId: data.requester_id,
+        authorizationId: data.id,
+        type: "request_rejected",
+        title: "Authorization rejected",
+        body: `Your request for ${plate} was rejected: ${parsed.data.rejection_reason}`,
+      });
     });
 
     revalidateApprovalPaths(data.id);
     return ok(data);
-  } catch (error) {
-    return fail(pgErrorMessage(error));
+  } catch {
+    return fail("Unable to reject this request. Please try again.");
   }
 }
 

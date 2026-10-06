@@ -760,6 +760,31 @@ export async function listPendingAuthorizations(
   }));
 }
 
+/** Logistics-only read view; callers must supply their current assigned locations. */
+export async function listLogisticsWaitingForFinalApproval(
+  locations: readonly string[],
+  limit = 200,
+): Promise<(AuthorizationListRow & { first_approver: Pick<Profile, "full_name"> | null })[]> {
+  return query(
+    `
+      select ${AUTHORIZATION_LIST_SELECT},
+        case when fp.id is null then null else jsonb_build_object(
+          'full_name', fp.full_name
+        ) end as first_approver
+      from authorizations a
+      left join vehicles v on v.id = a.vehicle_id
+      left join profiles p on p.id = a.requester_id
+      left join employees e on e.id = a.employee_id
+      left join profiles fp on fp.id = a.first_approver_id
+      where a.status = 'pending' and a.approval_stage = $2
+        and a.location = any($3::text[])
+      order by a.first_approved_at desc nulls last, a.created_at desc
+      limit $1
+    `,
+    [limit, 2, locations],
+  );
+}
+
 export async function listHistoryAuthorizations(
   limit = 300,
   locations?: readonly string[],

@@ -10,9 +10,11 @@ import {
   countPendingForReview,
   listExpiringAuthorizations,
   listInsightAuthorizations,
+  listLogisticsWaitingForFinalApproval,
   listLocationsForApprover,
   listPendingAuthorizations,
 } from "@/lib/db/queries";
+import { formatDecisionTime } from "@/lib/approvals/presentation";
 import { inclusiveDayCount } from "@/lib/dates";
 import {
   ApprovalsTable,
@@ -79,6 +81,7 @@ export default async function DashboardHomePage() {
   const [
     stats,
     queue,
+    waitingForFinalApproval,
     expiring,
     insightsRows,
     pendingCount,
@@ -89,6 +92,9 @@ export default async function DashboardHomePage() {
   ] = await Promise.all([
     getDashboardKpis(locations),
     listPendingAuthorizations(200, reviewFilter),
+    isLogistics
+      ? listLogisticsWaitingForFinalApproval(locations ?? [], 200)
+      : Promise.resolve([]),
     listExpiringAuthorizations({ today, in7Days, limit: 6, locations }),
     listInsightAuthorizations(`${since90Days}T00:00:00.000Z`, 500, locations),
     countAuthorizationsByStatus("pending", locations),
@@ -202,6 +208,60 @@ export default async function DashboardHomePage() {
           canEndAuthorization={!isLogistics}
         />
       </section>
+
+      {isLogistics ? (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+              Waiting for final approval
+            </h2>
+            <p className="text-sm text-slate-500">
+              {waitingForFinalApproval.length} request
+              {waitingForFinalApproval.length === 1 ? "" : "s"} · read only
+            </p>
+          </div>
+          {waitingForFinalApproval.length === 0 ? (
+            <div className="glass-panel rounded-2xl px-5 py-6 text-center text-sm text-slate-500">
+              No requests are waiting for final approval at your assigned locations.
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {waitingForFinalApproval.map((request) => (
+                <Link
+                  key={request.id}
+                  href={`/history/${request.id}`}
+                  className="glass-panel flex flex-col gap-3 rounded-2xl p-4 transition hover:border-[#e30613]/25 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-900">
+                      {request.vehicles?.plate_number ?? "Vehicle"}
+                      <span className="ml-2 font-normal text-slate-500">
+                        {request.employees?.full_name ?? request.requester?.full_name ?? "Requester"}
+                      </span>
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {request.location ?? "Assigned location"}
+                      {request.first_approver?.full_name
+                        ? ` · Logistics approved by ${request.first_approver.full_name}`
+                        : ""}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-start gap-1 sm:items-end">
+                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                      Logistics approved — waiting for final approval
+                    </span>
+                    {request.first_approved_at ? (
+                      <span className="text-xs text-slate-500">
+                        {formatDecisionTime(request.first_approved_at)}
+                      </span>
+                    ) : null}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
 
       <div className="grid gap-5 xl:grid-cols-3">
         <SectionCard

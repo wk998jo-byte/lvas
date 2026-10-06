@@ -26,7 +26,7 @@ import { EndAuthorizationAction } from "@/components/approvals/end-authorization
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { ExportCsvButton } from "@/components/export/export-csv-button";
 import { AuthorizationStatusBadge } from "@/components/authorizations/status-badge";
-import { pendingStageLabel } from "@/lib/approvals/logistics-team";
+import { approvalStatusLabel, approvalSuccessMessage } from "@/lib/approvals/presentation";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -225,7 +225,7 @@ export function ApprovalsTable({
         toast.error(result.error);
         return;
       }
-      toast.success("Request approved");
+      toast.success(approvalSuccessMessage(result.data));
     });
   }
 
@@ -449,7 +449,9 @@ export function ApprovalsTable({
                           status={status}
                           label={
                             status === "pending"
-                              ? pendingStageLabel(request.approval_stage)
+                              ? undefined
+                              : status === "rejected"
+                                ? approvalStatusLabel({ ...request, status })
                               : undefined
                           }
                         />
