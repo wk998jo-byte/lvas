@@ -31,6 +31,16 @@ import {
   resetPasswordSchema,
 } from "@/lib/validations";
 import { cookies } from "next/headers";
+import {
+  consumeRateLimit,
+  refundSuccessfulAttempt,
+  SAFE_REQUEST_ERROR,
+  TOO_MANY_ATTEMPTS,
+} from "@/lib/security/rate-limit";
+
+// Equal-cost verification when an email is unknown; no account-existence
+// branch skips password hashing. This synthetic credential is never persisted.
+const dummyPasswordHash = hashPassword(randomBytes(32).toString("base64url"));
 
 function sanitizeNextPath(next?: string | null): string {
   if (!next || !next.startsWith("/") || next.startsWith("//")) {
@@ -63,20 +73,22 @@ export async function signInWithPassword(input: {
   password: string;
   next?: string | null;
 }): Promise<ActionResult<{ next: string }>> {
-  const email = input.email.trim();
-  const password = input.password;
+  const email = typeof input?.email === "string" ? input.email.trim().toLowerCase() : "";
+  const password = typeof input?.password === "string" ? input.password : "";
 
   if (!email || !password) {
     return fail("Email and password are required.");
   }
 
   try {
+    const permit = await consumeRateLimit("login", email);
+    if (!permit.allowed) return fail(TOO_MANY_ATTEMPTS);
     const profile = await getProfileByEmail(email);
+    let passwordOk = await verifyPassword(password, profile?.password_hash ?? await dummyPasswordHash);
     if (!profile) {
       return fail("Invalid email or password.");
     }
 
-    let passwordOk = await verifyPassword(password, profile.password_hash);
     if (!passwordOk) {
       const bootstrapped = await maybeBootstrapPassword({
         profileId: profile.id,
@@ -102,11 +114,10 @@ export async function signInWithPassword(input: {
 
     const token = await createSession(profile.id);
     await setSessionCookie(token);
+    await refundSuccessfulAttempt(permit);
     return ok({ next: sanitizeNextPath(input.next) });
-  } catch (error) {
-    return fail(
-      error instanceof Error ? error.message : "Sign-in failed.",
-    );
+  } catch {
+    return fail(SAFE_REQUEST_ERROR);
   }
 }
 
@@ -177,8 +188,13 @@ export async function requestPasswordReset(
 
   const emailed = ok({ emailed: true });
   const notConfigured = ok({ emailed: false });
+  const genericResponse = isPasswordResetEmailConfigured() &&
+    (process.env.NODE_ENV !== "production" || Boolean(process.env.APP_URL?.trim()))
+    ? emailed : notConfigured;
 
   try {
+    const permit = await consumeRateLimit("forgotPassword", parsed.data.email.trim().toLowerCase());
+    if (!permit.allowed) return genericResponse;
     if (!isPasswordResetEmailConfigured()) {
       if (process.env.NODE_ENV === "production") return notConfigured;
     } else if (
@@ -212,17 +228,12 @@ export async function requestPasswordReset(
 
     try {
       await sendPasswordResetEmail(profile.email, resetUrl);
-    } catch (error) {
-      console.error(
-        "LVAS password reset email failed",
-        error instanceof Error ? error.message : error,
-      );
+    } catch {
+      console.error("LVAS password reset email delivery failed.");
     }
     return emailed;
-  } catch (error) {
-    return fail(
-      error instanceof Error ? error.message : "Could not send the reset email.",
-    );
+  } catch {
+    return genericResponse;
   }
 }
 
@@ -235,6 +246,8 @@ export async function resetPasswordWithToken(
   }
 
   try {
+    const permit = await consumeRateLimit("resetPassword");
+    if (!permit.allowed) return fail(TOO_MANY_ATTEMPTS);
     const updated = await resetPasswordWithTokenHash({
       tokenHash: hashResetToken(parsed.data.token),
       passwordHash: await hashPassword(parsed.data.new_password),
@@ -243,10 +256,8 @@ export async function resetPasswordWithToken(
       return fail("This reset link is invalid or has expired.");
     }
     return okEmpty();
-  } catch (error) {
-    return fail(
-      error instanceof Error ? error.message : "Could not reset the password.",
-    );
+  } catch {
+    return fail(SAFE_REQUEST_ERROR);
   }
 }
 

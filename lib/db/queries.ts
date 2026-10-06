@@ -1,4 +1,5 @@
 import { execute, getPool, query, queryOne } from "@/lib/db/pool";
+import type { VisibleAuthorizationConflict } from "@/lib/authorizations/overlap";
 import type {
   Authorization,
   AuthorizationStatus,
@@ -44,7 +45,7 @@ export type AuthorizationListRow = Authorization & {
   vehicles: Pick<Vehicle, "plate_number" | "make" | "model"> | null;
   requester: RequesterProfileRef;
   employees: RequesterEmployeeRef;
-  activeConflict?: ApprovedOverlapRow | null;
+  activeConflict?: VisibleAuthorizationConflict | null;
 };
 
 export type AuthorizationDetailRow = Authorization & {
@@ -78,6 +79,17 @@ const AUTHORIZATION_LIST_SELECT = `
 
 function likeContains(term: string): string {
   return `%${term.replace(/[%_\\]/g, "")}%`;
+}
+
+// Undefined is admin/global access; an empty array must never widen access.
+function authorizationLocationClause(
+  locations: readonly string[] | undefined,
+  params: unknown[],
+  alias = "a",
+): string {
+  if (locations === undefined) return "";
+  params.push(locations);
+  return ` and ${alias ? `${alias}.` : ""}location = any($${params.length}::text[])`;
 }
 
 export async function listActiveVehicles(): Promise<VehicleOption[]> {
@@ -464,6 +476,7 @@ export async function findApprovedOverlappingAuthorization(input: {
   startDate: string;
   endDate: string;
   excludeId?: string;
+  locations?: readonly string[];
 }): Promise<ApprovedOverlapRow | null> {
   const params: unknown[] = [
     input.vehicleId,
@@ -475,6 +488,7 @@ export async function findApprovedOverlappingAuthorization(input: {
     params.push(input.excludeId);
     excludeSql = `and a.id <> $${params.length}`;
   }
+  const locationSql = authorizationLocationClause(input.locations, params);
 
   return queryOne(
     `
@@ -490,6 +504,7 @@ export async function findApprovedOverlappingAuthorization(input: {
         and a.start_date <= $3
         and a.end_date >= $2
         ${excludeSql}
+        ${locationSql}
       order by a.end_date desc
       limit 1
     `,
@@ -499,14 +514,16 @@ export async function findApprovedOverlappingAuthorization(input: {
 
 export async function listApprovedOverlapsForPending(
   pendingIds: string[],
-): Promise<Map<string, ApprovedOverlapRow>> {
-  const conflicts = new Map<string, ApprovedOverlapRow>();
+  locations?: readonly string[],
+): Promise<Map<string, VisibleAuthorizationConflict>> {
+  const conflicts = new Map<string, VisibleAuthorizationConflict>();
   if (pendingIds.length === 0) return conflicts;
 
-  const rows = await query<ApprovedOverlapRow & { pending_id: string }>(
+  const rows = await query<ApprovedOverlapRow & { pending_id: string; location: string | null }>(
     `
       select distinct on (p.id)
         p.id as pending_id,
+        a.location,
         a.id,
         coalesce(nullif(e.full_name, ''), 'an employee') as authorized_to,
         a.start_date::text as start_date,
@@ -526,6 +543,12 @@ export async function listApprovedOverlapsForPending(
   );
 
   for (const row of rows) {
+    if (locations !== undefined && (row.location === null || !locations.includes(row.location))) {
+      // Preserve the vehicle-unavailable signal, but never send another
+      // location's request ID, employee name or dates to a logistics client.
+      conflicts.set(row.pending_id, { restricted: true });
+      continue;
+    }
     conflicts.set(row.pending_id, {
       id: row.id,
       authorized_to: row.authorized_to,
@@ -624,7 +647,10 @@ export async function getAuthorizationById(id: string): Promise<Authorization | 
 
 export async function getAuthorizationDetail(
   id: string,
+  locations?: readonly string[],
 ): Promise<AuthorizationDetailRow | null> {
+  const params: unknown[] = [id];
+  const locationSql = authorizationLocationClause(locations, params);
   return queryOne<AuthorizationDetailRow>(
     `
       select
@@ -657,8 +683,9 @@ export async function getAuthorizationDetail(
       left join profiles ap on ap.id = a.approver_id
       left join profiles fp on fp.id = a.first_approver_id
       where a.id = $1
+        ${locationSql}
     `,
-    [id],
+    params,
   );
 }
 
@@ -726,7 +753,7 @@ export async function listPendingAuthorizations(
     `,
     params,
   );
-  const conflicts = await listApprovedOverlapsForPending(rows.map((row) => row.id));
+  const conflicts = await listApprovedOverlapsForPending(rows.map((row) => row.id), filter?.locations);
   return rows.map((row) => ({
     ...row,
     activeConflict: conflicts.get(row.id) ?? null,
@@ -735,7 +762,10 @@ export async function listPendingAuthorizations(
 
 export async function listHistoryAuthorizations(
   limit = 300,
+  locations?: readonly string[],
 ): Promise<AuthorizationListRow[]> {
+  const params: unknown[] = [limit];
+  const locationSql = authorizationLocationClause(locations, params);
   return query<AuthorizationListRow>(
     `
       select ${AUTHORIZATION_LIST_SELECT}
@@ -744,10 +774,11 @@ export async function listHistoryAuthorizations(
       left join profiles p on p.id = a.requester_id
       left join employees e on e.id = a.employee_id
       where a.status in ('approved', 'rejected', 'expired', 'cancelled')
+        ${locationSql}
       order by a.updated_at desc
       limit $1
     `,
-    [limit],
+    params,
   );
 }
 
@@ -755,7 +786,10 @@ export async function listExpiringAuthorizations(input: {
   today: string;
   in7Days: string;
   limit?: number;
+  locations?: readonly string[];
 }) {
+  const params: unknown[] = [input.today, input.in7Days, input.limit ?? 6];
+  const locationSql = authorizationLocationClause(input.locations, params);
   return query<{
     id: string;
     end_date: string;
@@ -772,14 +806,17 @@ export async function listExpiringAuthorizations(input: {
       where a.status = 'approved'
         and a.end_date >= $1::date
         and a.end_date <= $2::date
+        ${locationSql}
       order by a.end_date asc
       limit $3
     `,
-    [input.today, input.in7Days, input.limit ?? 6],
+    params,
   );
 }
 
-export async function listInsightAuthorizations(sinceIso: string, limit = 500) {
+export async function listInsightAuthorizations(sinceIso: string, limit = 500, locations?: readonly string[]) {
+  const params: unknown[] = [sinceIso, limit];
+  const locationSql = authorizationLocationClause(locations, params);
   return query<{
     status: AuthorizationStatus;
     created_at: string;
@@ -796,25 +833,29 @@ export async function listInsightAuthorizations(sinceIso: string, limit = 500) {
       from authorizations a
       left join vehicles v on v.id = a.vehicle_id
       where a.created_at >= $1::timestamptz
+        ${locationSql}
       order by a.created_at desc
       limit $2
     `,
-    [sinceIso, limit],
+    params,
   );
 }
 
 export async function countAuthorizationsByStatus(
   status: AuthorizationStatus,
+  locations?: readonly string[],
 ): Promise<number> {
+  const params: unknown[] = [status];
+  const locationSql = authorizationLocationClause(locations, params, "");
   const row = await queryOne<{ count: string }>(
-    `select count(*)::text as count from authorizations where status = $1`,
-    [status],
+    `select count(*)::text as count from authorizations where status = $1${locationSql}`,
+    params,
   );
   return Number(row?.count ?? 0);
 }
 
-export async function countPendingAuthorizations(): Promise<number> {
-  return countAuthorizationsByStatus("pending");
+export async function countPendingAuthorizations(locations?: readonly string[]): Promise<number> {
+  return countAuthorizationsByStatus("pending", locations);
 }
 
 export async function countPendingForReview(input: {
@@ -891,14 +932,17 @@ export async function advanceToFinalApproval(input: {
   );
 }
 
-export async function countApprovedActive(today: string): Promise<number> {
+export async function countApprovedActive(today: string, locations?: readonly string[]): Promise<number> {
+  const params: unknown[] = [today];
+  const locationSql = authorizationLocationClause(locations, params, "");
   const row = await queryOne<{ count: string }>(
     `
       select count(*)::text as count
       from authorizations
       where status = 'approved' and end_date >= $1::date
+        ${locationSql}
     `,
-    [today],
+    params,
   );
   return Number(row?.count ?? 0);
 }
@@ -906,7 +950,10 @@ export async function countApprovedActive(today: string): Promise<number> {
 export async function countExpiringWithin(
   today: string,
   in7Days: string,
+  locations?: readonly string[],
 ): Promise<number> {
+  const params: unknown[] = [today, in7Days];
+  const locationSql = authorizationLocationClause(locations, params, "");
   const row = await queryOne<{ count: string }>(
     `
       select count(*)::text as count
@@ -914,8 +961,9 @@ export async function countExpiringWithin(
       where status = 'approved'
         and end_date >= $1::date
         and end_date <= $2::date
+        ${locationSql}
     `,
-    [today, in7Days],
+    params,
   );
   return Number(row?.count ?? 0);
 }

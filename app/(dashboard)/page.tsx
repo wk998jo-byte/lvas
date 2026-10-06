@@ -87,15 +87,15 @@ export default async function DashboardHomePage() {
     cancelledCount,
     expiredCount,
   ] = await Promise.all([
-    getDashboardKpis(),
+    getDashboardKpis(locations),
     listPendingAuthorizations(200, reviewFilter),
-    listExpiringAuthorizations({ today, in7Days, limit: 6 }),
-    listInsightAuthorizations(`${since90Days}T00:00:00.000Z`, 500),
-    countAuthorizationsByStatus("pending"),
-    countAuthorizationsByStatus("approved"),
-    countAuthorizationsByStatus("rejected"),
-    countAuthorizationsByStatus("cancelled"),
-    countAuthorizationsByStatus("expired"),
+    listExpiringAuthorizations({ today, in7Days, limit: 6, locations }),
+    listInsightAuthorizations(`${since90Days}T00:00:00.000Z`, 500, locations),
+    countAuthorizationsByStatus("pending", locations),
+    countAuthorizationsByStatus("approved", locations),
+    countAuthorizationsByStatus("rejected", locations),
+    countAuthorizationsByStatus("cancelled", locations),
+    countAuthorizationsByStatus("expired", locations),
   ]);
 
   const breakdown: BreakdownItem[] = [

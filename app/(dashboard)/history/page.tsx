@@ -2,7 +2,7 @@ import { History } from "lucide-react";
 
 import { isEffectivelyApproved } from "@/lib/authorizations/effective-status";
 import { requireRole } from "@/lib/auth/guards";
-import { listHistoryAuthorizations } from "@/lib/db/queries";
+import { listHistoryAuthorizations, listLocationsForApprover } from "@/lib/db/queries";
 import { ApprovalsTable } from "@/components/approvals/approvals-table";
 
 export const dynamic = "force-dynamic";
@@ -12,16 +12,18 @@ export default async function RequestsHistoryPage() {
 
   let requests;
   try {
-    requests = await listHistoryAuthorizations(300);
-  } catch (error) {
+    const locations = profile.role === "logistics_approver"
+      ? await listLocationsForApprover(profile.id)
+      : undefined;
+    requests = await listHistoryAuthorizations(300, locations);
+  } catch {
     return (
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">
           Requests history
         </h1>
         <p className="text-sm text-destructive" role="alert">
-          Failed to load history:{" "}
-          {error instanceof Error ? error.message : "Unknown error"}
+          Unable to load history. Please try again later.
         </p>
       </div>
     );

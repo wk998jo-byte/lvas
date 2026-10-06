@@ -149,6 +149,7 @@ function DetailRow({
 
 type AuthorizationDetailViewProps = {
   request: AuthorizationDetailData;
+  verificationUrl: string | null;
   breadcrumb: { href: string; label: string };
   title: string;
   actions?: ReactNode;
@@ -156,6 +157,7 @@ type AuthorizationDetailViewProps = {
 
 export function AuthorizationDetailView({
   request,
+  verificationUrl,
   breadcrumb,
   title,
   actions,
@@ -415,7 +417,7 @@ export function AuthorizationDetailView({
         </Card>
       </div>
 
-      <DigitalAuthorizationPass request={request} />
+      <DigitalAuthorizationPass request={request} verificationUrl={verificationUrl} />
     </div>
   );
 }
