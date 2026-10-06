@@ -6,7 +6,7 @@ import { ArrowLeft, ClipboardList, Copy } from "lucide-react";
 import { AuthorizationStatusBadge } from "@/components/authorizations/status-badge";
 import { PublicPass } from "@/components/public/public-pass";
 import { Button } from "@/components/ui/button";
-import { pendingStageLabel } from "@/lib/approvals/logistics-team";
+import { approvalStatusLabel } from "@/lib/approvals/presentation";
 import { effectiveAuthorizationStatus } from "@/lib/authorizations/effective-status";
 import { saudiTodayIsoDate } from "@/lib/business-date";
 import { getAuthorizationByPublicToken } from "@/lib/db/queries";
@@ -16,7 +16,6 @@ import { buildGateVerificationUrl } from "@/lib/authorizations/gate-url";
 export const dynamic = "force-dynamic";
 
 const STATUS_HINT: Record<string, string> = {
-  pending: "Waiting for review.",
   approved: "Approved. Show the pass below at the gate.",
   rejected: "This request was rejected.",
   expired: "This authorization has expired.",
@@ -70,18 +69,12 @@ export default async function TrackRequestPage({
           </h1>
           <AuthorizationStatusBadge
             status={status}
-            label={
-              status === "pending"
-                ? pendingStageLabel(request.approval_stage)
-                : undefined
-            }
+            label={approvalStatusLabel({ ...request, status })}
           />
         </div>
         <p className="text-sm text-slate-600">
-          {status === "pending"
-            ? request.approval_stage === 1
-              ? "Waiting for the logistics supervisor to review your request."
-              : "Logistics approved this request. Waiting for final approval."
+          {status === "pending" || status === "rejected"
+            ? approvalStatusLabel({ ...request, status })
             : (STATUS_HINT[status] ?? "")}
         </p>
         <p className="inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500">

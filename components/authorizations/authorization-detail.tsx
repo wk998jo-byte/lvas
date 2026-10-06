@@ -30,6 +30,11 @@ import {
 } from "@/lib/authorizations/requester";
 import { cn } from "@/lib/utils";
 import type { Authorization, Profile, Vehicle } from "@/types/database";
+import {
+  approvalDetailMessage,
+  decisionActorLabel,
+  formatDecisionTime,
+} from "@/lib/approvals/presentation";
 
 export type AuthorizationDetailVehicle = Pick<
   Vehicle,
@@ -59,11 +64,6 @@ function one<T>(value: T | T[] | null | undefined): T | null {
 
 function formatUsageAfter(value: string): string {
   return typeof value === "string" ? value.slice(0, 5) : value;
-}
-
-function formatDateTime(value: string | null | undefined): string {
-  if (!value) return "—";
-  return new Date(value).toLocaleString();
 }
 
 function formatDate(value: string) {
@@ -153,6 +153,7 @@ type AuthorizationDetailViewProps = {
   breadcrumb: { href: string; label: string };
   title: string;
   actions?: ReactNode;
+  viewerRole?: Profile["role"];
 };
 
 export function AuthorizationDetailView({
@@ -161,6 +162,7 @@ export function AuthorizationDetailView({
   breadcrumb,
   title,
   actions,
+  viewerRole = "admin",
 }: AuthorizationDetailViewProps) {
   const vehicle = one(request.vehicles);
   const requester = resolveRequester({
@@ -172,6 +174,7 @@ export function AuthorizationDetailView({
   const firstApprover = one(request.first_approver);
   const usage = formatUsageAfter(request.usage_after);
   const plate = vehicle?.plate_number ?? "Request";
+  const status = effectiveAuthorizationStatus(request.status, request.end_date);
 
   return (
     <div className="space-y-6 animate-rise">
@@ -201,10 +204,8 @@ export function AuthorizationDetailView({
         <div className="relative space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <AuthorizationStatusBadge
-              status={effectiveAuthorizationStatus(
-                request.status,
-                request.end_date,
-              )}
+              status={status}
+              label={approvalDetailMessage(viewerRole, { ...request, status })}
             />
             <span className="text-xs font-medium tracking-[0.18em] text-slate-400 uppercase">
               After-hours authorization
@@ -368,13 +369,12 @@ export function AuthorizationDetailView({
                   : "—")}
               {request.first_approved_at ? (
                 <span className="mt-0.5 block text-xs font-normal text-slate-500">
-                  {formatDateTime(request.first_approved_at)}
+                  {formatDecisionTime(request.first_approved_at)}
                 </span>
               ) : null}
             </DetailRow>
-            <DetailRow icon={<UserRound className="size-4" />} label="Final approver">
-              {approver?.full_name?.trim() ||
-                (request.approver_id ? "Muteb" : "Unassigned")}
+            <DetailRow icon={<UserRound className="size-4" />} label={decisionActorLabel(request)}>
+              {approver?.full_name?.trim() || (request.approver_id ? "—" : "Unassigned")}
               {approver?.email ? (
                 <span className="mt-0.5 block text-xs font-normal text-slate-500">
                   {approver.email}
@@ -385,14 +385,14 @@ export function AuthorizationDetailView({
               icon={<CalendarDays className="size-4" />}
               label="Submitted"
             >
-              {formatDateTime(request.created_at)}
+              {formatDecisionTime(request.created_at)}
             </DetailRow>
             {request.approved_at ? (
               <DetailRow
                 icon={<CheckCircle2 className="size-4 text-emerald-600" />}
                 label="Approved at"
               >
-                {formatDateTime(request.approved_at)}
+                {formatDecisionTime(request.approved_at)}
               </DetailRow>
             ) : null}
             {request.rejected_at ? (
@@ -400,7 +400,7 @@ export function AuthorizationDetailView({
                 icon={<XCircle className="size-4 text-rose-600" />}
                 label="Rejected at"
               >
-                {formatDateTime(request.rejected_at)}
+                {formatDecisionTime(request.rejected_at)}
               </DetailRow>
             ) : null}
             {request.rejection_reason ? (

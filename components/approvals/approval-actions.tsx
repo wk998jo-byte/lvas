@@ -9,6 +9,7 @@ import {
   rejectAuthorization,
 } from "@/actions/approvals";
 import { ActiveAuthorizationNotice } from "@/components/approvals/active-authorization-notice";
+import { approvalSuccessMessage } from "@/lib/approvals/presentation";
 import { Button } from "@/components/ui/button";
 import type { VisibleAuthorizationConflict } from "@/lib/authorizations/overlap";
 import {
@@ -45,7 +46,7 @@ export function ApprovalActions({
         toast.error(result.error);
         return;
       }
-      toast.success("Request approved");
+      toast.success(approvalSuccessMessage(result.data));
     });
   }
 

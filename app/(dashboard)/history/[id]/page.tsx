@@ -6,6 +6,7 @@ import { isEffectivelyApproved } from "@/lib/authorizations/effective-status";
 import { findApprovedOverlappingAuthorization, getAuthorizationDetail, listLocationsForApprover } from "@/lib/db/queries";
 import { ApprovalActions } from "@/components/approvals/approval-actions";
 import { EndAuthorizationAction } from "@/components/approvals/end-authorization-action";
+import { canReviewApproval } from "@/lib/approvals/presentation";
 import {
   AuthorizationDetailView,
   type AuthorizationDetailData,
@@ -62,8 +63,9 @@ export default async function RequestDetailPage({
       verificationUrl={buildGateVerificationUrl(request.public_token)}
       breadcrumb={{ href: "/history", label: "Requests history" }}
       title="Authorization details"
+      viewerRole={profile.role}
       actions={
-        request.status === "pending" ? (
+        canReviewApproval(profile.role, request) ? (
           <ApprovalActions
             authorizationId={request.id}
             conflict={conflict}

@@ -84,6 +84,7 @@ function load(file) {
   const require = (name) => {
     if (name === "@/lib/db/pool") return pool;
     if (name === "@/lib/db/queries") return queries;
+    if (name === "@/lib/approvals/presentation") return load("lib/approvals/presentation.ts");
     if (name === "@/lib/dashboard/stats") return stats;
     if (name === "@/lib/business-date") return dateHelpers;
     if (name === "@/lib/dates") return { inclusiveDayCount: () => 7 };

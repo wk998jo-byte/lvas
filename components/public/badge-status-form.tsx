@@ -12,7 +12,7 @@ import { AuthorizationStatusBadge } from "@/components/authorizations/status-bad
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { pendingStageLabel } from "@/lib/approvals/logistics-team";
+import { approvalStatusLabel } from "@/lib/approvals/presentation";
 import { effectiveAuthorizationStatus } from "@/lib/authorizations/effective-status";
 
 export function BadgeStatusForm() {
@@ -132,11 +132,10 @@ export function BadgeStatusForm() {
                         </p>
                         <AuthorizationStatusBadge
                           status={status}
-                          label={
-                            status === "pending"
-                              ? pendingStageLabel(request.approvalStage)
-                              : undefined
-                          }
+                          label={approvalStatusLabel({
+                            status,
+                            approval_stage: request.approvalStage,
+                          })}
                         />
                       </div>
                       <p className="mt-1 text-xs text-slate-500">
