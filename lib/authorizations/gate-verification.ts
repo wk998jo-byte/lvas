@@ -10,7 +10,7 @@ export type GateAuthorizationRow = {
   end_date: string;
   usage_after: string;
   location: string | null;
-  vehicle: { plate_number: string; make: string; model: string } | null;
+  vehicle: { door_number: string | null; plate_number: string; make: string; model: string } | null;
   requester: { full_name: string; badge: string | null } | null;
 };
 
@@ -23,6 +23,7 @@ export type GateVerificationResultData = {
     driver: string;
     badge: string | null;
     plate: string;
+    doorNumber: string | null;
     vehicle: string;
     location: string | null;
     startDate: string;
@@ -91,6 +92,7 @@ export function evaluateGateAuthorization(
       driver: row.requester.full_name,
       badge: row.requester.badge,
       plate: row.vehicle.plate_number,
+      doorNumber: row.vehicle.door_number ?? null,
       vehicle: `${row.vehicle.make} ${row.vehicle.model}`,
       location: row.location,
       startDate: row.start_date,

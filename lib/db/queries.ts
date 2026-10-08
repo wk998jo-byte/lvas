@@ -21,7 +21,7 @@ export type PublicEmployee = {
 
 export type VehicleOption = Pick<
   Vehicle,
-  "id" | "plate_number" | "make" | "model" | "year" | "color"
+  "id" | "door_number" | "plate_number" | "make" | "model" | "year" | "color"
 >;
 
 export type RequesterProfileRef = Pick<
@@ -42,7 +42,7 @@ export type ApprovedOverlapRow = {
 };
 
 export type AuthorizationListRow = Authorization & {
-  vehicles: Pick<Vehicle, "plate_number" | "make" | "model"> | null;
+  vehicles: Pick<Vehicle, "door_number" | "plate_number" | "make" | "model"> | null;
   requester: RequesterProfileRef;
   employees: RequesterEmployeeRef;
   activeConflict?: VisibleAuthorizationConflict | null;
@@ -51,7 +51,7 @@ export type AuthorizationListRow = Authorization & {
 export type AuthorizationDetailRow = Authorization & {
   vehicles: Pick<
     Vehicle,
-    "id" | "plate_number" | "make" | "model" | "year" | "color"
+    "id" | "door_number" | "plate_number" | "make" | "model" | "year" | "color"
   > | null;
   requester: RequesterProfileRef;
   employees: RequesterEmployeeRef;
@@ -67,7 +67,7 @@ const AUTHORIZATION_LIST_SELECT = `
   a.first_approver_id, a.first_approved_at, a.approved_at, a.rejected_at,
   a.created_at, a.updated_at,
   case when v.id is null then null else jsonb_build_object(
-    'plate_number', v.plate_number, 'make', v.make, 'model', v.model
+    'door_number', v.door_number, 'plate_number', v.plate_number, 'make', v.make, 'model', v.model
   ) end as vehicles,
   case when p.id is null then null else jsonb_build_object(
     'full_name', p.full_name, 'email', p.email, 'department', p.department
@@ -95,7 +95,7 @@ function authorizationLocationClause(
 export async function listActiveVehicles(): Promise<VehicleOption[]> {
   return query<VehicleOption>(
     `
-      select id, plate_number, make, model, year, color
+      select id, door_number, plate_number, make, model, year, color
       from vehicles
       where is_active = true
       order by plate_number asc
@@ -117,6 +117,7 @@ export async function getVehicleById(id: string): Promise<Vehicle | null> {
 }
 
 export async function insertVehicle(input: {
+  door_number: string | null;
   plate_number: string;
   make: string;
   model: string;
@@ -127,8 +128,8 @@ export async function insertVehicle(input: {
 }): Promise<Vehicle> {
   const row = await queryOne<Vehicle>(
     `
-      insert into vehicles (plate_number, make, model, year, color, notes, created_by, is_active)
-      values ($1, $2, $3, $4, $5, $6, $7, true)
+      insert into vehicles (plate_number, make, model, year, color, notes, created_by, door_number, is_active)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, true)
       returning *
     `,
     [
@@ -139,6 +140,7 @@ export async function insertVehicle(input: {
       input.color,
       input.notes,
       input.created_by,
+      input.door_number,
     ],
   );
   if (!row) throw new Error("Failed to create vehicle");
@@ -148,6 +150,7 @@ export async function insertVehicle(input: {
 export async function updateVehicleRow(
   id: string,
   fields: {
+    door_number: string | null;
     plate_number: string;
     make: string;
     model: string;
@@ -159,7 +162,7 @@ export async function updateVehicleRow(
   return queryOne<Vehicle>(
     `
       update vehicles
-      set plate_number = $2, make = $3, model = $4, year = $5, color = $6, notes = $7
+      set plate_number = $2, make = $3, model = $4, year = $5, color = $6, notes = $7, door_number = $8
       where id = $1
       returning *
     `,
@@ -171,6 +174,7 @@ export async function updateVehicleRow(
       fields.year,
       fields.color,
       fields.notes,
+      fields.door_number,
     ],
   );
 }
@@ -223,6 +227,7 @@ export type BadgeAuthorizationRow = {
   location: string | null;
   approval_stage: number;
   created_at: string;
+  door_number: string | null;
   plate_number: string | null;
   make: string | null;
   model: string | null;
@@ -245,6 +250,7 @@ export async function listAuthorizationsByEmployeeId(
         a.location,
         a.approval_stage,
         a.created_at,
+        v.door_number,
         v.plate_number,
         v.make,
         v.model
@@ -661,7 +667,7 @@ export async function getAuthorizationDetail(
         a.first_approver_id, a.first_approved_at, a.approved_at, a.rejected_at,
         a.created_at, a.updated_at,
         case when v.id is null then null else jsonb_build_object(
-          'id', v.id, 'plate_number', v.plate_number, 'make', v.make,
+          'id', v.id, 'door_number', v.door_number, 'plate_number', v.plate_number, 'make', v.make,
           'model', v.model, 'year', v.year, 'color', v.color
         ) end as vehicles,
         case when p.id is null then null else jsonb_build_object(
@@ -703,7 +709,7 @@ export async function getAuthorizationByPublicToken(token: string) {
     justification: string | null;
     approval_stage: number;
     created_at: string;
-    vehicles: Pick<Vehicle, "plate_number" | "make" | "model"> | null;
+    vehicles: Pick<Vehicle, "door_number" | "plate_number" | "make" | "model"> | null;
     employees: Pick<Employee, "full_name" | "badge"> | null;
   }>(
     `
@@ -712,7 +718,7 @@ export async function getAuthorizationByPublicToken(token: string) {
         a.duration_label, a.usage_after::text as usage_after, a.purpose,
         a.rejection_reason, a.location, a.justification, a.approval_stage, a.created_at,
         case when v.id is null then null else jsonb_build_object(
-          'plate_number', v.plate_number, 'make', v.make, 'model', v.model
+          'door_number', v.door_number, 'plate_number', v.plate_number, 'make', v.make, 'model', v.model
         ) end as vehicles,
         case when e.id is null then null else jsonb_build_object(
           'full_name', e.full_name, 'badge', e.badge
@@ -818,13 +824,13 @@ export async function listExpiringAuthorizations(input: {
   return query<{
     id: string;
     end_date: string;
-    vehicles: Pick<Vehicle, "plate_number" | "make" | "model"> | null;
+    vehicles: Pick<Vehicle, "door_number" | "plate_number" | "make" | "model"> | null;
   }>(
     `
       select
         a.id, a.end_date::text as end_date,
         case when v.id is null then null else jsonb_build_object(
-          'plate_number', v.plate_number, 'make', v.make, 'model', v.model
+          'door_number', v.door_number, 'plate_number', v.plate_number, 'make', v.make, 'model', v.model
         ) end as vehicles
       from authorizations a
       left join vehicles v on v.id = a.vehicle_id
@@ -847,13 +853,13 @@ export async function listInsightAuthorizations(sinceIso: string, limit = 500, l
     created_at: string;
     approved_at: string | null;
     rejected_at: string | null;
-    vehicles: { plate_number: string } | null;
+    vehicles: { door_number: string | null; plate_number: string } | null;
   }>(
     `
       select
         a.status, a.created_at, a.approved_at, a.rejected_at,
         case when v.id is null then null else jsonb_build_object(
-          'plate_number', v.plate_number
+          'door_number', v.door_number, 'plate_number', v.plate_number
         ) end as vehicles
       from authorizations a
       left join vehicles v on v.id = a.vehicle_id
@@ -1094,7 +1100,7 @@ export async function listApprovedEndingBetween(input: {
 }): Promise<
   Array<
     Authorization & {
-      vehicles: Pick<Vehicle, "plate_number" | "make" | "model"> | null;
+      vehicles: Pick<Vehicle, "door_number" | "plate_number" | "make" | "model"> | null;
     }
   >
 > {
@@ -1108,7 +1114,7 @@ export async function listApprovedEndingBetween(input: {
         a.first_approver_id, a.first_approved_at, a.approved_at, a.rejected_at,
         a.created_at, a.updated_at,
         case when v.id is null then null else jsonb_build_object(
-          'plate_number', v.plate_number, 'make', v.make, 'model', v.model
+          'door_number', v.door_number, 'plate_number', v.plate_number, 'make', v.make, 'model', v.model
         ) end as vehicles
       from authorizations a
       left join vehicles v on v.id = a.vehicle_id

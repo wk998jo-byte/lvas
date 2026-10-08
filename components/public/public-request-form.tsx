@@ -400,7 +400,7 @@ function DetailsStep({
             disabled={pending}
           />
           <p className="text-xs text-slate-500">
-            Type a plate number, make, or model to filter{" "}
+            Type a door number, plate, make, or model to filter{" "}
             {vehicles.length.toLocaleString()} vehicles.
           </p>
         </div>

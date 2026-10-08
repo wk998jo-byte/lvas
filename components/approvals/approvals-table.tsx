@@ -57,7 +57,7 @@ import type {
 } from "@/types/database";
 
 export type ApprovalListItem = Authorization & {
-  vehicles: Pick<Vehicle, "plate_number" | "make" | "model"> | null;
+  vehicles: Pick<Vehicle, "door_number" | "plate_number" | "make" | "model"> | null;
   requester: RequesterProfileRef;
   employees: RequesterEmployeeRef;
   activeConflict?: VisibleAuthorizationConflict | null;
@@ -178,6 +178,7 @@ export function ApprovalsTable({
       const requesterEmail = (person.contact ?? "").toLowerCase();
       const department = (person.department ?? "").toLowerCase();
       const badge = (person.badge ?? "").toLowerCase();
+      const door = request.vehicles?.door_number?.toLowerCase() ?? "";
       const plate = request.vehicles?.plate_number?.toLowerCase() ?? "";
       const vehicle =
         `${request.vehicles?.make ?? ""} ${request.vehicles?.model ?? ""}`.toLowerCase();
@@ -189,6 +190,7 @@ export function ApprovalsTable({
         requesterEmail.includes(q) ||
         department.includes(q) ||
         badge.includes(q) ||
+        door.includes(q) ||
         plate.includes(q) ||
         vehicle.includes(q) ||
         purpose.includes(q) ||
@@ -261,7 +263,7 @@ export function ApprovalsTable({
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search requester, badge, plate, department…"
+              placeholder="Search requester, badge, door number, plate, department…"
               className="h-11 rounded-xl border-slate-200/80 bg-white/90 pl-10"
             />
           </div>
@@ -309,6 +311,7 @@ export function ApprovalsTable({
                 requester_contact: person.contact ?? "",
                 submitted_via: person.source === "public" ? "public form" : "account",
                 department: person.department ?? "",
+                door_number: request.vehicles?.door_number ?? "",
                 plate_number: request.vehicles?.plate_number ?? "",
                 vehicle: request.vehicles
                   ? `${request.vehicles.make} ${request.vehicles.model}`
@@ -414,7 +417,9 @@ export function ApprovalsTable({
               saudiToday,
             );
             const conflict = request.activeConflict ?? null;
-            const plate = vehicle?.plate_number ?? "Vehicle";
+            const plate = vehicle
+              ? `${vehicle.door_number ? `Door ${vehicle.door_number} · ` : ""}Plate ${vehicle.plate_number}`
+              : "Vehicle";
             const model = vehicle
               ? `${vehicle.make} ${vehicle.model}`
               : "Details unavailable";

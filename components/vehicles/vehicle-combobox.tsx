@@ -3,12 +3,18 @@
 import { Combobox } from "@base-ui/react/combobox";
 import { Car, Check, ChevronsUpDown, Search, X } from "lucide-react";
 
+import {
+  matchesVehicleSearch,
+  vehicleLabel,
+} from "@/lib/vehicles/identity";
 import { cn } from "@/lib/utils";
 import type { Vehicle } from "@/types/database";
 
+export { vehicleLabel } from "@/lib/vehicles/identity";
+
 export type VehicleOption = Pick<
   Vehicle,
-  "id" | "plate_number" | "make" | "model"
+  "id" | "door_number" | "plate_number" | "make" | "model"
 > & {
   year?: number | null;
   color?: string | null;
@@ -21,27 +27,6 @@ type VehicleComboboxProps = {
   onValueChange: (vehicle: VehicleOption | null) => void;
   disabled?: boolean;
 };
-
-/** Plates are searchable with or without separators: "ABC 1234" ≈ "abc-1234". */
-function normalize(value: string) {
-  return value.toLowerCase().replace(/[\s\-_]/g, "");
-}
-
-function haystack(vehicle: VehicleOption) {
-  return normalize(
-    [
-      vehicle.plate_number,
-      vehicle.make,
-      vehicle.model,
-      vehicle.year?.toString() ?? "",
-      vehicle.color ?? "",
-    ].join(" "),
-  );
-}
-
-export function vehicleLabel(vehicle: VehicleOption) {
-  return `${vehicle.plate_number} — ${vehicle.make} ${vehicle.model}`;
-}
 
 export function VehicleCombobox({
   id,
@@ -61,17 +46,13 @@ export function VehicleCombobox({
       itemToStringLabel={vehicleLabel}
       itemToStringValue={(vehicle) => vehicle.id}
       isItemEqualToValue={(a, b) => a.id === b.id}
-      filter={(vehicle, query) => {
-        const q = normalize(query);
-        if (!q) return true;
-        return haystack(vehicle).includes(q);
-      }}
+      filter={matchesVehicleSearch}
     >
       <Combobox.InputGroup className="relative">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
         <Combobox.Input
           id={id}
-          placeholder="Search plate, make, or model…"
+          placeholder="Search door number, plate, make, or model…"
           className="h-11 w-full rounded-xl border border-slate-200/80 bg-white/90 pr-16 pl-10 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus-visible:border-[#e30613]/40 focus-visible:ring-3 focus-visible:ring-[#e30613]/15 disabled:opacity-50"
         />
         <div className="absolute inset-y-0 right-1 flex items-center">
@@ -111,7 +92,8 @@ export function VehicleCombobox({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold text-slate-900">
-                      {vehicle.plate_number}
+                      {vehicle.door_number ? `Door ${vehicle.door_number}` : "Door No. unavailable"}
+                      {` — Plate ${vehicle.plate_number}`}
                     </span>
                     <span className="block truncate text-xs text-slate-500">
                       {vehicle.make} {vehicle.model}

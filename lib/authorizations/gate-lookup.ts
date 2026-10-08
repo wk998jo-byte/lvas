@@ -15,7 +15,7 @@ export async function getGateVerification(token: string) {
       select a.id, a.status, a.start_date::text as start_date,
         a.end_date::text as end_date, a.usage_after::text as usage_after, a.location,
         case when v.id is null then null else jsonb_build_object(
-          'plate_number', v.plate_number, 'make', v.make, 'model', v.model
+          'door_number', v.door_number, 'plate_number', v.plate_number, 'make', v.make, 'model', v.model
         ) end as vehicle,
         case
           when a.employee_id is not null then

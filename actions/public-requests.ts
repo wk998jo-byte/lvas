@@ -240,6 +240,7 @@ export type BadgeRequestSummary = {
   rejectionReason: string | null;
   location: string | null;
   approvalStage: number;
+  doorNumber: string | null;
   plate: string | null;
   vehicle: string | null;
 };
@@ -277,6 +278,7 @@ export async function lookupRequestsByBadge(
         rejectionReason: row.rejection_reason,
         location: row.location,
         approvalStage: row.approval_stage,
+        doorNumber: row.door_number,
         plate: row.plate_number,
         vehicle:
           row.make && row.model ? `${row.make} ${row.model}` : null,

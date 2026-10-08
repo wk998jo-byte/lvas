@@ -26,6 +26,8 @@ const yearSchema = z
   });
 
 export const vehicleFormSchema = z.object({
+  door_number: z.string().trim().max(64, "Door Number is too long")
+    .nullish().transform((value) => value || null),
   plate_number: plateSchema,
   make: z.string().trim().min(1, "Make is required").max(80),
   model: z.string().trim().min(1, "Model is required").max(80),

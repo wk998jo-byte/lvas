@@ -123,7 +123,9 @@ export function BadgeStatusForm() {
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm font-semibold text-slate-900">
-                          {request.plate ?? "Vehicle"}
+                          {request.doorNumber
+                            ? `Door ${request.doorNumber} · Plate ${request.plate ?? "Vehicle"}`
+                            : `Door No. unavailable · Plate ${request.plate ?? "Vehicle"}`}
                           {request.vehicle ? (
                             <span className="ml-2 font-normal text-slate-500">
                               {request.vehicle}

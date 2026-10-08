@@ -141,9 +141,12 @@ export function VehicleDetailView({ vehicle }: VehicleDetailViewProps) {
                 </span>
               </div>
               <h1 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">
-                {vehicle.plate_number}
+                {vehicle.door_number
+                  ? `Door ${vehicle.door_number}`
+                  : vehicle.plate_number}
               </h1>
               <p className="text-base text-slate-600 md:text-lg">
+                Plate {vehicle.plate_number} ·{" "}
                 {vehicle.make} {vehicle.model}
                 {vehicle.year ? ` · ${vehicle.year}` : ""}
               </p>
@@ -162,8 +165,8 @@ export function VehicleDetailView({ vehicle }: VehicleDetailViewProps) {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <InfoTile
           icon={Hash}
-          label="Plate number"
-          value={vehicle.plate_number}
+          label="Vehicle identifiers"
+          value={`Door ${vehicle.door_number ?? "unavailable"} · Plate ${vehicle.plate_number}`}
           accent
         />
         <InfoTile

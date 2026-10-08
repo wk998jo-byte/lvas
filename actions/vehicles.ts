@@ -19,6 +19,14 @@ import type { Vehicle } from "@/types/database";
 
 function revalidateVehiclePaths() {
   revalidatePath("/vehicles");
+  revalidatePath("/request");
+}
+
+function vehicleDuplicateMessage(error: unknown): string {
+  const constraint = (error as { constraint?: string })?.constraint;
+  return constraint === "vehicles_door_number_unique"
+    ? "A vehicle with this Door Number already exists"
+    : "A vehicle with this plate number already exists";
 }
 
 export async function createVehicle(
@@ -39,7 +47,7 @@ export async function createVehicle(
     return ok(data);
   } catch (error) {
     if (isUniqueViolation(error)) {
-      return fail("A vehicle with this plate number already exists");
+      return fail(vehicleDuplicateMessage(error));
     }
     return fail(pgErrorMessage(error));
   }
@@ -63,7 +71,7 @@ export async function updateVehicle(
     return ok(data);
   } catch (error) {
     if (isUniqueViolation(error)) {
-      return fail("A vehicle with this plate number already exists");
+      return fail(vehicleDuplicateMessage(error));
     }
     return fail(pgErrorMessage(error));
   }

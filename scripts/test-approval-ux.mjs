@@ -140,7 +140,7 @@ try {
   await db.query(`
     create temp table profiles (id uuid,full_name text,email text,department text,role text,is_active boolean);
     create temp table employees (id uuid,full_name text,badge text,department text,mobile text);
-    create temp table vehicles (id uuid,plate_number text,make text,model text,year integer,color text,is_active boolean,notes text,created_by uuid,created_at timestamptz,updated_at timestamptz);
+    create temp table vehicles (id uuid,plate_number text,make text,model text,year integer,color text,is_active boolean,notes text,created_by uuid,created_at timestamptz,updated_at timestamptz,door_number text);
     create temp table logistics_approver_locations (profile_id uuid,location text);
     create temp table notifications (user_id uuid,authorization_id uuid,type text,title text,body text,is_read boolean,sent_at timestamptz,dedupe_key text);
     create temp table authorizations (

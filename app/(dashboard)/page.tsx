@@ -31,6 +31,7 @@ import type { AuthorizationStatus } from "@/types/database";
 export const dynamic = "force-dynamic";
 
 type VehicleRef = {
+  door_number: string | null;
   plate_number: string;
   make: string;
   model: string;
@@ -62,6 +63,11 @@ function one<T>(value: T | T[] | null | undefined): T | null {
 function vehicleLabel(vehicle: VehicleRef): string {
   if (!vehicle) return "Vehicle";
   return `${vehicle.make} ${vehicle.model}`;
+}
+
+function compactIdentity(vehicle: VehicleRef): string {
+  if (!vehicle) return "Vehicle";
+  return `${vehicle.door_number ? `Door ${vehicle.door_number} · ` : ""}Plate ${vehicle.plate_number}`;
 }
 
 export default async function DashboardHomePage() {
@@ -234,7 +240,7 @@ export default async function DashboardHomePage() {
                 >
                   <div className="min-w-0">
                     <p className="font-semibold text-slate-900">
-                      {request.vehicles?.plate_number ?? "Vehicle"}
+                      {compactIdentity(request.vehicles)}
                       <span className="ml-2 font-normal text-slate-500">
                         {request.employees?.full_name ?? request.requester?.full_name ?? "Requester"}
                       </span>
@@ -292,7 +298,7 @@ export default async function DashboardHomePage() {
                   >
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-slate-900">
-                        {vehicle?.plate_number ?? "Vehicle"}
+                        {compactIdentity(vehicle)}
                         <span className="ml-2 font-normal text-slate-500">
                           {vehicleLabel(vehicle)}
                         </span>
@@ -375,7 +381,11 @@ export default async function DashboardHomePage() {
           />
           <InsightTile
             label="Most requested vehicle"
-            value={insights.topVehicle?.plate ?? "—"}
+            value={
+              insights.topVehicle
+                ? `${insights.topVehicle.doorNumber ? `${insights.topVehicle.doorNumber} · ` : ""}${insights.topVehicle.plate}`
+                : "—"
+            }
             hint={
               insights.topVehicle
                 ? `${insights.topVehicle.count} request${
@@ -395,7 +405,10 @@ type InsightRow = {
   created_at: string;
   approved_at: string | null;
   rejected_at: string | null;
-  vehicles: { plate_number: string } | { plate_number: string }[] | null;
+  vehicles:
+    | { door_number: string | null; plate_number: string }
+    | { door_number: string | null; plate_number: string }[]
+    | null;
 };
 
 function summarizeInsights(rows: InsightRow[]) {
@@ -415,10 +428,13 @@ function summarizeInsights(rows: InsightRow[]) {
     .filter((value): value is number => value !== null);
 
   const plateCounts = new Map<string, number>();
+  const plateDoors = new Map<string, string | null>();
   for (const row of rows) {
-    const plate = one(row.vehicles)?.plate_number;
+    const vehicle = one(row.vehicles);
+    const plate = vehicle?.plate_number;
     if (!plate) continue;
     plateCounts.set(plate, (plateCounts.get(plate) ?? 0) + 1);
+    plateDoors.set(plate, vehicle.door_number);
   }
   const top = [...plateCounts.entries()].sort((a, b) => b[1] - a[1])[0];
 
@@ -434,7 +450,13 @@ function summarizeInsights(rows: InsightRow[]) {
         ? null
         : decisionHours.reduce((sum, value) => sum + value, 0) /
           decisionHours.length,
-    topVehicle: top ? { plate: top[0], count: top[1] } : null,
+    topVehicle: top
+      ? {
+          plate: top[0],
+          doorNumber: plateDoors.get(top[0]) ?? null,
+          count: top[1],
+        }
+      : null,
   };
 }
 
