@@ -103,7 +103,7 @@ export default async function TrackRequestPage({
             label="Vehicle"
             value={
               vehicle
-                ? `${vehicle.plate_number} — ${vehicle.make} ${vehicle.model}`
+                ? `${vehicle.door_number ? `Door ${vehicle.door_number} — ` : "Door No. unavailable — "}Plate ${vehicle.plate_number} — ${vehicle.make} ${vehicle.model}`
                 : "—"
             }
           />
@@ -135,6 +135,7 @@ export default async function TrackRequestPage({
         <PublicPass
           pass={{
             id: request.id,
+            doorNumber: vehicle.door_number ?? null,
             plate: vehicle.plate_number,
             vehicle: `${vehicle.make} ${vehicle.model}`,
             driver: employee.full_name,

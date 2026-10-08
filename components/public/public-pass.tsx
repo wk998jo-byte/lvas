@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 
 export type PublicPassData = {
   id: string;
+  doorNumber: string | null;
   plate: string;
   vehicle: string;
   driver: string;
@@ -49,6 +50,10 @@ export function PublicPass({ pass }: { pass: PublicPassData }) {
             <PassField label="Driver / requester" value={pass.driver} />
             <div className="grid gap-3 sm:grid-cols-2">
               <PassField label="Badge" value={pass.badge} />
+              <PassField
+                label="Door number"
+                value={pass.doorNumber ?? "Unavailable"}
+              />
               <PassField label="Vehicle plate" value={pass.plate} />
               <PassField label="Vehicle" value={pass.vehicle} />
               <PassField label="Usage after" value={pass.usageAfter} />

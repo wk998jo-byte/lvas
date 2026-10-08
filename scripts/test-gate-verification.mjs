@@ -93,7 +93,7 @@ try {
   // Shadow names resolve to pg_temp for this connection only. ON COMMIT DROP
   // and the final rollback prevent either fixtures or schema persisting.
   await client.query(`
-    create temp table vehicles (id uuid, plate_number text, make text, model text) on commit drop;
+    create temp table vehicles (id uuid, plate_number text, make text, model text, door_number text) on commit drop;
     create temp table employees (id uuid, full_name text, badge text, national_id text, mobile text) on commit drop;
     create temp table profiles (id uuid, full_name text, email text) on commit drop;
     create temp table authorizations (
@@ -105,7 +105,7 @@ try {
       rejected_at timestamptz, created_at timestamptz, updated_at timestamptz
     ) on commit drop;
   `);
-  await client.query("insert into pg_temp.vehicles values ($1,'TEST-PLATE','Test Make','Test Model')", [vehicleId]);
+  await client.query("insert into pg_temp.vehicles values ($1,'TEST-PLATE','Test Make','Test Model','006-01-736')", [vehicleId]);
   await client.query("insert into pg_temp.employees values ($1,'Synthetic Driver','TEST-BADGE','PRIVATE ID','PRIVATE MOBILE')", [employeeId]);
   await client.query("insert into pg_temp.profiles values ($1,'Synthetic Account','private@example.invalid')", [profileId]);
   await client.query(`insert into pg_temp.authorizations
@@ -125,12 +125,13 @@ try {
   assert.equal(valid.details.reference, "11111111");
   assert.equal(invalidLimitCalls, 0, "known QR scans do not spend any rate budget");
   const html = renderToStaticMarkup(React.createElement(GateVerificationResult, { result: valid }));
-  for (const text of ["VALID AUTHORIZATION", "TEST-PLATE", "TEST-BADGE", "Valid from", "Valid through", "19:00", "Reference", "Jafurah"]) assert.ok(html.includes(text), text);
+  for (const text of ["VALID AUTHORIZATION", "006-01-736", "TEST-PLATE", "TEST-BADGE", "Valid from", "Valid through", "19:00", "Reference", "Jafurah"]) assert.ok(html.includes(text), text);
   assert.match(html, /19:00/);
   assert.doesNotMatch(html, /Time unavailable/);
   assert.match(html, /6 Oct 2026, 19:00/);
   assert.doesNotMatch(JSON.stringify(valid) + html, /PRIVATE|private@example|11111111-1111|22222222-2222/);
-  assert.deepEqual(Object.keys(valid.details).sort(), ["badge", "driver", "endDate", "location", "plate", "reference", "startDate", "usageAfter", "vehicle"].sort());
+  assert.equal(valid.details.doorNumber, "006-01-736");
+  assert.deepEqual(Object.keys(valid.details).sort(), ["badge", "doorNumber", "driver", "endDate", "location", "plate", "reference", "startDate", "usageAfter", "vehicle"].sort());
   assert.ok(lookupQueries.every(({ sql, params }) => /^select/i.test(sql.trim()) && params[0] === token && /a.public_token = \$1/.test(sql)));
   assert.ok(lookupQueries.every(({ sql }) => !/national_id|contact_mobile|justification|rejection_reason|email/.test(sql)));
 
@@ -210,11 +211,11 @@ try {
   const { PublicPass } = load("components/public/public-pass.tsx");
   const { DigitalAuthorizationPass } = load("components/authorizations/digital-pass.tsx");
   const pass = { id, plate: "TEST-PLATE", vehicle: "Test Make Test Model", driver: "Synthetic Driver", badge: "TEST-BADGE", startDate: "2026-10-06", endDate: "2099-01-01", usageAfter: "19:00", verificationUrl: url };
-  const request = { id, public_token: token, status: "approved", start_date: pass.startDate, end_date: pass.endDate, usage_after: "19:00:00", vehicles: { plate_number: pass.plate, make: "Test Make", model: "Test Model" }, employees: { full_name: pass.driver, badge: pass.badge }, requester: null };
+  const request = { id, public_token: token, status: "approved", start_date: pass.startDate, end_date: pass.endDate, usage_after: "19:00:00", vehicles: { door_number: pass.doorNumber, plate_number: pass.plate, make: "Test Make", model: "Test Model" }, employees: { full_name: pass.driver, badge: pass.badge }, requester: null };
   const publicHtml = renderToStaticMarkup(React.createElement(PublicPass, { pass }));
   const digitalHtml = renderToStaticMarkup(React.createElement(DigitalAuthorizationPass, { request, verificationUrl: url }));
   assert.deepEqual(qrValues, [url, url], "both actual renderers encode the same live URL");
-  assert.ok(qrValues.every((value) => !/TEST-PLATE|TEST-BADGE|Synthetic Driver|11111111|LVAS-PASS/.test(value)));
+  assert.ok(qrValues.every((value) => !/006-01-736|TEST-PLATE|TEST-BADGE|Synthetic Driver|11111111|LVAS-PASS/.test(value)));
   assert.ok(publicHtml.includes("Print pass") && digitalHtml.includes("Save as PDF"));
   qrValues.length = 0;
   renderToStaticMarkup(React.createElement(PublicPass, { pass: { ...pass, verificationUrl: null } }));

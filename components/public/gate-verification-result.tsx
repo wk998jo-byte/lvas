@@ -128,6 +128,10 @@ export function GateVerificationResult({
               {details.badge && (
                 <ComparisonRow label="Company ID / badge" value={details.badge} />
               )}
+              <ComparisonRow
+                label="Door number"
+                value={details.doorNumber ?? "Unavailable"}
+              />
               <ComparisonRow label="Vehicle plate" value={details.plate} />
               <ComparisonRow label="Vehicle" value={details.vehicle} />
               <ComparisonRow label="Valid from" value={details.startDate} />

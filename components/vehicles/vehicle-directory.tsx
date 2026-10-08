@@ -26,6 +26,7 @@ type VehicleDirectoryProps = {
 
 function matches(vehicle: Vehicle, query: string) {
   return [
+    vehicle.door_number ?? "",
     vehicle.plate_number,
     vehicle.make,
     vehicle.model,
@@ -78,7 +79,7 @@ export function VehicleDirectory({ vehicles }: VehicleDirectoryProps) {
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search plate, make, model, color…"
+            placeholder="Search door number, plate, make, model, color…"
             className="h-10 rounded-xl border-slate-200 pl-10"
           />
         </div>
@@ -93,7 +94,7 @@ export function VehicleDirectory({ vehicles }: VehicleDirectoryProps) {
           <EmptyState
             icon={Search}
             title="No matches"
-            description="Try another plate number, make, or model."
+            description="Try another door number, plate, make, or model."
           />
         </div>
       ) : (
@@ -101,6 +102,7 @@ export function VehicleDirectory({ vehicles }: VehicleDirectoryProps) {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Door number</TableHead>
                 <TableHead>Plate</TableHead>
                 <TableHead>Make &amp; model</TableHead>
                 <TableHead>Year</TableHead>
@@ -111,6 +113,9 @@ export function VehicleDirectory({ vehicles }: VehicleDirectoryProps) {
             <TableBody>
               {rows.map((vehicle) => (
                 <TableRow key={vehicle.id}>
+                  <TableCell className="font-semibold tabular-nums text-slate-900">
+                    {vehicle.door_number ?? "—"}
+                  </TableCell>
                   <TableCell className="font-semibold text-slate-900">
                     {vehicle.plate_number}
                   </TableCell>

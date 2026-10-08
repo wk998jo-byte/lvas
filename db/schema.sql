@@ -136,6 +136,7 @@ execute function set_updated_at();
 -- ---------------------------------------------------------------------------
 create table if not exists vehicles (
   id uuid primary key default gen_random_uuid(),
+  door_number text,
   plate_number text not null,
   make text not null,
   model text not null,
@@ -152,6 +153,8 @@ create table if not exists vehicles (
 
 create index if not exists vehicles_is_active_idx on vehicles (is_active);
 create index if not exists vehicles_plate_number_idx on vehicles (plate_number);
+create unique index if not exists vehicles_door_number_unique
+  on vehicles (door_number) where door_number is not null;
 
 drop trigger if exists vehicles_set_updated_at on vehicles;
 create trigger vehicles_set_updated_at

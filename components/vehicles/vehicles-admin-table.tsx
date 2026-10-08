@@ -86,6 +86,7 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
       if (filter === "inactive" && vehicle.is_active) return false;
       if (!q) return true;
       return [
+        vehicle.door_number ?? "",
         vehicle.plate_number,
         vehicle.make,
         vehicle.model,
@@ -167,7 +168,7 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search plate, make, model, color…"
+              placeholder="Search door number, plate, make, model, color…"
               className="h-10 rounded-xl border-slate-200 pl-10"
             />
           </div>
@@ -176,6 +177,7 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
               filename={`lvas-vehicles-${new Date().toISOString().slice(0, 10)}.csv`}
               rows={filtered.map((vehicle) => ({
                 id: vehicle.id,
+                door_number: vehicle.door_number,
                 plate_number: vehicle.plate_number,
                 make: vehicle.make,
                 model: vehicle.model,
@@ -267,6 +269,7 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Door number</TableHead>
                 <TableHead>Plate</TableHead>
                 <TableHead>Make &amp; model</TableHead>
                 <TableHead>Year</TableHead>
@@ -281,6 +284,9 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
                   key={vehicle.id}
                   className={cn(!vehicle.is_active && "bg-slate-50/40")}
                 >
+                  <TableCell className="font-semibold tabular-nums text-slate-900">
+                    {vehicle.door_number ?? "—"}
+                  </TableCell>
                   <TableCell className="font-semibold text-slate-900">
                     {vehicle.plate_number}
                   </TableCell>
@@ -414,7 +420,9 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
           <DialogHeader>
             <DialogTitle>Edit vehicle</DialogTitle>
             <DialogDescription>
-              Update plate details for {editing?.plate_number}.
+              Update details for {editing?.door_number
+                ? `Door ${editing.door_number} · Plate ${editing.plate_number}`
+                : `Plate ${editing?.plate_number}`}.
             </DialogDescription>
           </DialogHeader>
           {editing ? (

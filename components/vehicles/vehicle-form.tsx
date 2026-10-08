@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { Vehicle } from "@/types/database";
 
 export type VehicleFormState = {
+  door_number: string;
   plate_number: string;
   make: string;
   model: string;
@@ -19,6 +20,7 @@ export type VehicleFormState = {
 
 export function vehicleToFormState(vehicle?: Vehicle | null): VehicleFormState {
   return {
+    door_number: vehicle?.door_number ?? "",
     plate_number: vehicle?.plate_number ?? "",
     make: vehicle?.make ?? "",
     model: vehicle?.model ?? "",
@@ -64,6 +66,18 @@ export function VehicleForm({
   return (
     <form className="space-y-5" onSubmit={handleSubmit}>
       <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="door_number">Door number (optional)</Label>
+          <Input
+            id="door_number"
+            value={values.door_number}
+            onChange={(e) => update("door_number", e.target.value)}
+            disabled={pending}
+            maxLength={64}
+            className="h-11 rounded-xl"
+            placeholder="e.g. 006-01-736"
+          />
+        </div>
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="plate_number">Plate number</Label>
           <Input

@@ -100,6 +100,12 @@ export function DigitalAuthorizationPass({
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <p className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">
+                    Door number
+                  </p>
+                  <p className="font-semibold">{vehicle?.door_number ?? "Unavailable"}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">
                     Vehicle plate
                   </p>
                   <p className="font-semibold">{plate}</p>

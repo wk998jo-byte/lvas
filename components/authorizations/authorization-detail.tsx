@@ -38,7 +38,7 @@ import {
 
 export type AuthorizationDetailVehicle = Pick<
   Vehicle,
-  "id" | "plate_number" | "make" | "model" | "year" | "color"
+  "id" | "door_number" | "plate_number" | "make" | "model" | "year" | "color"
 >;
 
 export type AuthorizationDetailPerson = Pick<
@@ -173,7 +173,9 @@ export function AuthorizationDetailView({
   const approver = one(request.approver);
   const firstApprover = one(request.first_approver);
   const usage = formatUsageAfter(request.usage_after);
-  const plate = vehicle?.plate_number ?? "Request";
+  const plate = vehicle
+    ? `${vehicle.door_number ? `Door ${vehicle.door_number} · ` : ""}Plate ${vehicle.plate_number}`
+    : "Request";
   const status = effectiveAuthorizationStatus(request.status, request.end_date);
 
   return (
@@ -261,6 +263,9 @@ export function AuthorizationDetailView({
           <CardContent className="space-y-3 pt-4">
             {vehicle ? (
               <>
+                <DetailRow icon={<Car className="size-4" />} label="Door number">
+                  {vehicle.door_number ?? "Unavailable"}
+                </DetailRow>
                 <DetailRow icon={<Car className="size-4" />} label="Plate">
                   <Link
                     href={`/vehicles/${vehicle.id}`}
