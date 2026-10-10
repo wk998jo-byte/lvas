@@ -66,9 +66,10 @@ existing schema requires trustworthy make and model; no values are invented.
 Plate/year absence alone does not block readiness.
 
 READY records: **417**, with **61 supplied statuses** and **356 UNKNOWN statuses**.
-No activation boolean is inferred. Every new Door Number needs an explicit,
-separately approved availability decision before a write can proceed; that
-decision is independent of the source status retained in notes.
+The subsequent business decision explicitly approved all 417 as `is_active=true`,
+excluding all 20 review records. This is not a guessed source status. See
+[417 active rollout preparation](417-active-fleet-rollout.md) for the private
+payload, guarded Production DML runner, preflight and verified simulation.
 
 ## Complete conflict evidence
 
@@ -125,8 +126,10 @@ uses the partial Door uniqueness index for conflict protection, never updates
 vehicles or authorizations, and rolls back on any unexpected plate/other conflict.
 
 The CLI and callable importer deliberately refuse every target except the
-dedicated `127.0.0.1:15439/heliumdb` fixture. **Production execution is not
-implemented or authorized.** A separately reviewed future runner is required.
+dedicated `127.0.0.1:15439/heliumdb` fixture. Production execution is not authorized.
+The subsequent dedicated runner is documented in
+[417 active rollout preparation](417-active-fleet-rollout.md); the disposable
+importer restriction remains unchanged.
 
 Dry-run is the default and performs the real inserts followed by rollback:
 
@@ -137,8 +140,9 @@ DATABASE_URL=postgresql://postgres@127.0.0.1:15439/heliumdb \
 ```
 
 The plan is a JSON object mapping each new Door to an explicitly approved
-boolean. No Production plan is supplied. Verification uses a clearly synthetic,
-test-only availability plan; it must never be treated as business approval.
+boolean. Its original verification used a clearly synthetic, test-only
+availability plan, never business approval. The subsequent explicit approval
+of the 417 READY vehicles is documented separately.
 Existing Door matches are skipped without changing UUIDs or attributes.
 
 ## Verification
@@ -162,10 +166,11 @@ The regular preview configuration is restored after fixture-only verification.
 
 ## Controlled Production rollout
 
-**NO — not yet authorized/ready to execute.** First approve availability decisions,
-review the conflict evidence and 20 blocked missing records, obtain a new
-read-only Production comparison immediately before execution, and separately
-review the Production migration and import runner. This PR must remain unmerged.
+The initial report was **NO**. The subsequent explicit 417-active approval,
+strict preflight, guarded runner and full simulation are documented in
+[417 active rollout preparation](417-active-fleet-rollout.md). Preparation is
+ready; live execution remains unauthorized, all 20 review records stay excluded,
+and this PR must remain unmerged until a new explicit instruction.
 
 Existing vehicle updates by the importer: **ZERO**. Production writes: **ZERO**.
 Production migration applications, real vehicle imports, merges and republishes:
