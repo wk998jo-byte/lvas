@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { approvalStatusLabel } from "@/lib/approvals/presentation";
 import { effectiveAuthorizationStatus } from "@/lib/authorizations/effective-status";
+import { plateLabel } from "@/components/vehicles/plate-label";
 
 export function BadgeStatusForm() {
   const [badge, setBadge] = useState("");
@@ -115,6 +116,10 @@ export function BadgeStatusForm() {
                   request.status,
                   request.endDate,
                 );
+                const plate = plateLabel({
+                  plate_number: request.plate,
+                  door_number: request.doorNumber,
+                });
                 return (
                   <li key={request.token}>
                     <Link
@@ -124,8 +129,8 @@ export function BadgeStatusForm() {
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm font-semibold text-slate-900">
                           {request.doorNumber
-                            ? `Door ${request.doorNumber} · Plate ${request.plate ?? "Vehicle"}`
-                            : `Door No. unavailable · Plate ${request.plate ?? "Vehicle"}`}
+                            ? `Door ${request.doorNumber} · ${plate}`
+                            : `Door No. unavailable · ${plate}`}
                           {request.vehicle ? (
                             <span className="ml-2 font-normal text-slate-500">
                               {request.vehicle}

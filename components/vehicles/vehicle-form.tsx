@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { Vehicle } from "@/types/database";
+import { isDoorNumberPlate } from "@/components/vehicles/plate-label";
 
 export type VehicleFormState = {
   door_number: string;
@@ -21,7 +22,9 @@ export type VehicleFormState = {
 export function vehicleToFormState(vehicle?: Vehicle | null): VehicleFormState {
   return {
     door_number: vehicle?.door_number ?? "",
-    plate_number: vehicle?.plate_number ?? "",
+    plate_number: isDoorNumberPlate(vehicle?.plate_number ?? null, vehicle?.door_number)
+      ? ""
+      : vehicle?.plate_number ?? "",
     make: vehicle?.make ?? "",
     model: vehicle?.model ?? "",
     year: vehicle?.year?.toString() ?? "",
@@ -79,15 +82,14 @@ export function VehicleForm({
           />
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="plate_number">Plate number</Label>
+          <Label htmlFor="plate_number">Plate number (optional)</Label>
           <Input
             id="plate_number"
-            required
             value={values.plate_number}
             onChange={(e) => update("plate_number", e.target.value)}
             disabled={pending}
             className="h-11 rounded-xl"
-            placeholder="e.g. ABC 1234"
+            placeholder="Actual registration plate, if known"
           />
         </div>
         <div className="space-y-2">

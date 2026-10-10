@@ -3,14 +3,21 @@
 import { Combobox } from "@base-ui/react/combobox";
 import { Car, Check, ChevronsUpDown, Search, X } from "lucide-react";
 
-import {
-  matchesVehicleSearch,
-  vehicleLabel,
-} from "@/lib/vehicles/identity";
+import { plateLabel, matchesVehicleSearch } from "@/lib/vehicles/identity";
 import { cn } from "@/lib/utils";
 import type { Vehicle } from "@/types/database";
 
-export { vehicleLabel } from "@/lib/vehicles/identity";
+export function vehicleLabel(vehicle: VehicleOption): string {
+  return `${vehicleIdentity(vehicle)} — ${vehicle.make} ${vehicle.model}`;
+}
+
+function vehicleIdentity(vehicle: VehicleOption) {
+  const door = vehicle.door_number?.trim();
+  const plate = plateLabel(vehicle);
+  return `${door ? `Door ${door}` : "Door No. unavailable"} — ${
+    plate === "Plate unavailable" ? plate : `Plate ${plate}`
+  }`;
+}
 
 export type VehicleOption = Pick<
   Vehicle,
@@ -46,7 +53,7 @@ export function VehicleCombobox({
       itemToStringLabel={vehicleLabel}
       itemToStringValue={(vehicle) => vehicle.id}
       isItemEqualToValue={(a, b) => a.id === b.id}
-      filter={matchesVehicleSearch}
+       filter={(vehicle, query) => matchesVehicleSearch(vehicle, query)}
     >
       <Combobox.InputGroup className="relative">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
@@ -92,8 +99,7 @@ export function VehicleCombobox({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold text-slate-900">
-                      {vehicle.door_number ? `Door ${vehicle.door_number}` : "Door No. unavailable"}
-                      {` — Plate ${vehicle.plate_number}`}
+                      {vehicleIdentity(vehicle)}
                     </span>
                     <span className="block truncate text-xs text-slate-500">
                       {vehicle.make} {vehicle.model}

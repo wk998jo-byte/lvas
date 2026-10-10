@@ -20,6 +20,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { plateLabel, vehicleIdentityLabel } from "@/components/vehicles/plate-label";
 import type { Vehicle } from "@/types/database";
 
 type VehicleDetailViewProps = {
@@ -141,12 +142,10 @@ export function VehicleDetailView({ vehicle }: VehicleDetailViewProps) {
                 </span>
               </div>
               <h1 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">
-                {vehicle.door_number
-                  ? `Door ${vehicle.door_number}`
-                  : vehicle.plate_number}
+                {vehicle.door_number ? `Door ${vehicle.door_number}` : "Vehicle"}
               </h1>
               <p className="text-base text-slate-600 md:text-lg">
-                Plate {vehicle.plate_number} ·{" "}
+                {plateLabel(vehicle)} ·{" "}
                 {vehicle.make} {vehicle.model}
                 {vehicle.year ? ` · ${vehicle.year}` : ""}
               </p>
@@ -166,7 +165,7 @@ export function VehicleDetailView({ vehicle }: VehicleDetailViewProps) {
         <InfoTile
           icon={Hash}
           label="Vehicle identifiers"
-          value={`Door ${vehicle.door_number ?? "unavailable"} · Plate ${vehicle.plate_number}`}
+          value={vehicleIdentityLabel(vehicle)}
           accent
         />
         <InfoTile

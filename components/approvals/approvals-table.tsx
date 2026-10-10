@@ -55,6 +55,7 @@ import type {
   Authorization,
   Vehicle,
 } from "@/types/database";
+import { plateLabel } from "@/components/vehicles/plate-label";
 
 export type ApprovalListItem = Authorization & {
   vehicles: Pick<Vehicle, "door_number" | "plate_number" | "make" | "model"> | null;
@@ -418,7 +419,7 @@ export function ApprovalsTable({
             );
             const conflict = request.activeConflict ?? null;
             const plate = vehicle
-              ? `${vehicle.door_number ? `Door ${vehicle.door_number} · ` : ""}Plate ${vehicle.plate_number}`
+              ? `${vehicle.door_number ? `Door ${vehicle.door_number} · ` : ""}${plateLabel(vehicle)}`
               : "Vehicle";
             const model = vehicle
               ? `${vehicle.make} ${vehicle.model}`

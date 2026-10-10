@@ -47,6 +47,12 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import type { Vehicle } from "@/types/database";
+import {
+  isDoorNumberPlate,
+  plateFieldValue,
+  plateLabel,
+  vehicleSearchMatches,
+} from "@/components/vehicles/plate-label";
 
 type VehiclesAdminTableProps = {
   vehicles: Vehicle[];
@@ -80,23 +86,12 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
   }, [vehicles]);
 
   const filtered = useMemo(() => {
-    const q = deferredQuery.trim().toLowerCase();
+      const q = deferredQuery.trim();
     return vehicles.filter((vehicle) => {
       if (filter === "active" && !vehicle.is_active) return false;
       if (filter === "inactive" && vehicle.is_active) return false;
       if (!q) return true;
-      return [
-        vehicle.door_number ?? "",
-        vehicle.plate_number,
-        vehicle.make,
-        vehicle.model,
-        vehicle.color ?? "",
-        vehicle.year?.toString() ?? "",
-        vehicle.notes ?? "",
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(q);
+      return vehicleSearchMatches(vehicle, q);
     });
   }, [vehicles, deferredQuery, filter]);
 
@@ -113,7 +108,10 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
   function runCreate(values: VehicleFormState) {
     setFormError(null);
     startTransition(async () => {
-      const result = await createVehicle(values);
+      const result = await createVehicle({
+        ...values,
+        plate_number: values.plate_number.trim() || null,
+      });
       if (!result.ok) {
         setFormError(result.error);
         return;
@@ -127,7 +125,15 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
     if (!editing) return;
     setFormError(null);
     startTransition(async () => {
-      const result = await updateVehicle({ id: editing.id, ...values });
+      const result = await updateVehicle({
+        id: editing.id,
+        ...values,
+        plate_number:
+          isDoorNumberPlate(editing.plate_number, editing.door_number) &&
+          !values.plate_number.trim()
+            ? editing.plate_number
+            : values.plate_number.trim() || null,
+      });
       if (!result.ok) {
         setFormError(result.error);
         return;
@@ -144,7 +150,7 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
         toast.error(result.error);
         return;
       }
-      toast.success(`${vehicle.plate_number} deactivated`);
+      toast.success(`${vehicle.door_number ? `Door ${vehicle.door_number}` : plateLabel(vehicle)} deactivated`);
     });
   }
 
@@ -155,7 +161,7 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
         toast.error(result.error);
         return;
       }
-      toast.success(`${vehicle.plate_number} reactivated`);
+      toast.success(`${vehicle.door_number ? `Door ${vehicle.door_number}` : plateLabel(vehicle)} reactivated`);
     });
   }
 
@@ -244,7 +250,7 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
             }
             description={
               vehicles.length === 0
-                ? "Add the first plate to the fleet directory to get started."
+                ? "Add the first vehicle to the fleet directory to get started."
                 : "Try another search term or status filter."
             }
             action={
@@ -288,7 +294,7 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
                     {vehicle.door_number ?? "—"}
                   </TableCell>
                   <TableCell className="font-semibold text-slate-900">
-                    {vehicle.plate_number}
+                    {plateFieldValue(vehicle)}
                   </TableCell>
                   <TableCell>
                     {vehicle.make} {vehicle.model}
@@ -316,7 +322,7 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
                         type="button"
                         size="icon-sm"
                         variant="ghost"
-                        aria-label={`Edit ${vehicle.plate_number}`}
+                        aria-label={`Edit ${vehicle.door_number ? `Door ${vehicle.door_number}` : plateLabel(vehicle)}`}
                         title="Edit"
                         disabled={pending}
                         onClick={() => {
@@ -329,7 +335,7 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
                       <Button
                         size="icon-sm"
                         variant="ghost"
-                        aria-label={`View ${vehicle.plate_number}`}
+                        aria-label={`View ${vehicle.door_number ? `Door ${vehicle.door_number}` : plateLabel(vehicle)}`}
                         title="View details"
                         render={<Link href={`/vehicles/${vehicle.id}`} />}
                       >
@@ -340,7 +346,7 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
                           type="button"
                           size="icon-sm"
                           variant="ghost"
-                          aria-label={`Deactivate ${vehicle.plate_number}`}
+                          aria-label={`Deactivate ${vehicle.door_number ? `Door ${vehicle.door_number}` : plateLabel(vehicle)}`}
                           title="Deactivate"
                           className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                           disabled={pending}
@@ -353,7 +359,7 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
                           type="button"
                           size="icon-sm"
                           variant="ghost"
-                          aria-label={`Reactivate ${vehicle.plate_number}`}
+                          aria-label={`Reactivate ${vehicle.door_number ? `Door ${vehicle.door_number}` : plateLabel(vehicle)}`}
                           title="Reactivate"
                           className="text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
                           disabled={pending}
@@ -421,8 +427,8 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
             <DialogTitle>Edit vehicle</DialogTitle>
             <DialogDescription>
               Update details for {editing?.door_number
-                ? `Door ${editing.door_number} · Plate ${editing.plate_number}`
-                : `Plate ${editing?.plate_number}`}.
+                ? `Door ${editing.door_number} · ${plateLabel(editing)}`
+                : plateLabel(editing ?? { plate_number: null })}.
             </DialogDescription>
           </DialogHeader>
           {editing ? (

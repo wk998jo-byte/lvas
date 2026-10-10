@@ -5,11 +5,12 @@ import { QRCodeSVG } from "qrcode.react";
 
 import { BrandLogo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
+import { plateLabel } from "@/components/vehicles/plate-label";
 
 export type PublicPassData = {
   id: string;
   doorNumber: string | null;
-  plate: string;
+  plate: string | null;
   vehicle: string;
   driver: string;
   badge: string;
@@ -20,6 +21,10 @@ export type PublicPassData = {
 };
 
 export function PublicPass({ pass }: { pass: PublicPassData }) {
+  const plate = plateLabel({
+    plate_number: pass.plate,
+    door_number: pass.doorNumber,
+  });
   return (
     <div className="space-y-3">
       <Button
@@ -54,7 +59,7 @@ export function PublicPass({ pass }: { pass: PublicPassData }) {
                 label="Door number"
                 value={pass.doorNumber ?? "Unavailable"}
               />
-              <PassField label="Vehicle plate" value={pass.plate} />
+              <PassField label="Vehicle plate" value={plate} />
               <PassField label="Vehicle" value={pass.vehicle} />
               <PassField label="Usage after" value={pass.usageAfter} />
               <PassField label="Valid from" value={pass.startDate} />

@@ -27,12 +27,13 @@ import {
 } from "@/components/dashboard/status-breakdown";
 import { Button } from "@/components/ui/button";
 import type { AuthorizationStatus } from "@/types/database";
+import { plateLabel } from "@/lib/vehicles/identity";
 
 export const dynamic = "force-dynamic";
 
 type VehicleRef = {
   door_number: string | null;
-  plate_number: string;
+  plate_number: string | null;
   make: string;
   model: string;
 } | null;
@@ -67,7 +68,7 @@ function vehicleLabel(vehicle: VehicleRef): string {
 
 function compactIdentity(vehicle: VehicleRef): string {
   if (!vehicle) return "Vehicle";
-  return `${vehicle.door_number ? `Door ${vehicle.door_number} · ` : ""}Plate ${vehicle.plate_number}`;
+  return `${vehicle.door_number ? `Door ${vehicle.door_number} · ` : ""}${plateLabel(vehicle)}`;
 }
 
 export default async function DashboardHomePage() {
@@ -406,8 +407,8 @@ type InsightRow = {
   approved_at: string | null;
   rejected_at: string | null;
   vehicles:
-    | { door_number: string | null; plate_number: string }
-    | { door_number: string | null; plate_number: string }[]
+    | { id?: string; door_number: string | null; plate_number: string | null }
+    | { id?: string; door_number: string | null; plate_number: string | null }[]
     | null;
 };
 
@@ -427,16 +428,25 @@ function summarizeInsights(rows: InsightRow[]) {
     })
     .filter((value): value is number => value !== null);
 
-  const plateCounts = new Map<string, number>();
-  const plateDoors = new Map<string, string | null>();
-  for (const row of rows) {
+  const vehicleCounts = new Map<string, { count: number; doorNumber: string | null; plate: string }>();
+  rows.forEach((row, index) => {
     const vehicle = one(row.vehicles);
-    const plate = vehicle?.plate_number;
-    if (!plate) continue;
-    plateCounts.set(plate, (plateCounts.get(plate) ?? 0) + 1);
-    plateDoors.set(plate, vehicle.door_number);
-  }
-  const top = [...plateCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (!vehicle) return;
+    const key = vehicle.id
+      ? `id:${vehicle.id}`
+      : vehicle.door_number?.trim()
+        ? `door:${vehicle.door_number.trim().toLowerCase()}`
+        : vehicle.plate_number?.trim()
+          ? `plate:${vehicle.plate_number.trim().toLowerCase()}`
+          : `row:${index}`;
+    const existing = vehicleCounts.get(key);
+    vehicleCounts.set(key, {
+      count: (existing?.count ?? 0) + 1,
+      doorNumber: vehicle.door_number,
+      plate: plateLabel(vehicle),
+    });
+  });
+  const top = [...vehicleCounts.values()].sort((a, b) => b.count - a.count)[0];
 
   return {
     total: rows.length,
@@ -452,9 +462,9 @@ function summarizeInsights(rows: InsightRow[]) {
           decisionHours.length,
     topVehicle: top
       ? {
-          plate: top[0],
-          doorNumber: plateDoors.get(top[0]) ?? null,
-          count: top[1],
+          plate: top.plate,
+          doorNumber: top.doorNumber,
+          count: top.count,
         }
       : null,
   };

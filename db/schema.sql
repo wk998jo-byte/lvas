@@ -137,7 +137,7 @@ execute function set_updated_at();
 create table if not exists vehicles (
   id uuid primary key default gen_random_uuid(),
   door_number text,
-  plate_number text not null,
+  plate_number text,
   make text not null,
   model text not null,
   year integer,

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card";
 import type { AuthorizationDetailData } from "@/components/authorizations/authorization-detail";
 import { isEffectivelyApproved } from "@/lib/authorizations/effective-status";
+import { plateLabel } from "@/components/vehicles/plate-label";
 
 function one<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
@@ -36,7 +37,7 @@ export function DigitalAuthorizationPass({
     employee: request.employees,
     contactMobile: request.contact_mobile,
   });
-  const plate = vehicle?.plate_number ?? "UNKNOWN";
+  const plate = vehicle ? plateLabel(vehicle) : "Plate unavailable";
   const driver = requester.name;
 
   if (!isEffectivelyApproved(request.status, request.end_date)) return null;
