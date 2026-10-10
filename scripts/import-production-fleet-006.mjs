@@ -85,7 +85,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       ? await importProductionReady(client, payload, { confirmation, expectedTarget })
       : await preflight(client, payload)));
   } catch (error) {
-    console.error(`Import STOP (transaction rolled back): ${error.code ?? "validation"} — ${error.message}`);
+    // Assertions may contain private profile/vehicle rows. Never dump them.
+    console.error(`Import STOP: ${error.code ?? "validation"} — no import committed; inspect privately`);
     process.exitCode = 1;
   } finally { await client.end(); }
 }

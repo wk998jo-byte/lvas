@@ -4,8 +4,8 @@
  * Writes private payload + aggregate integrity manifest, never imports.
  */
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync, mkdirSync, existsSync, lstatSync, realpathSync, chmodSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { readFileSync, writeFileSync, mkdirSync, lstatSync, realpathSync, chmodSync, constants } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
 import path from "node:path";
 import { validateReady } from "./import-fleet-006.mjs";
 import { fingerprint, vehicleFingerprint } from "./fleet-006-integrity.mjs";
@@ -51,7 +51,8 @@ const appRoot = realpathSync(path.resolve(import.meta.dirname, ".."));
 const privateDirectory = path.join(appRoot, "generated-artifacts/fleet-006/rollout");
 assert.equal(path.resolve(output), privateDirectory, "Only the dedicated ignored private directory is allowed");
 for (let dir = privateDirectory; dir !== appRoot; dir = path.dirname(dir)) {
-  if (existsSync(dir)) assert.ok(!lstatSync(dir).isSymbolicLink(), "Private directory cannot be a symlink");
+  const stat = lstatSync(dir, { throwIfNoEntry: false });
+  if (stat) assert.ok(!stat.isSymbolicLink(), "Private directory cannot be a symlink");
 }
 assert.match(readFileSync(path.join(appRoot, ".replitignore"), "utf8"), /^\/?generated-artifacts\/?$/m,
   "Private directory must also be excluded from deployment");
@@ -59,14 +60,20 @@ for (const name of ["production-payload.json", "approval-manifest.json"]) {
   const relative = `generated-artifacts/fleet-006/rollout/${name}`;
   assert.ok(execFileSync("git", ["check-ignore", "--no-index", relative], { cwd: appRoot, encoding: "utf8" }).trim(),
     "Private output must be Git-ignored");
+  assert.equal(spawnSync("git", ["ls-files", "--error-unmatch", relative], { cwd: appRoot }).status, 1,
+    "Private output must not already be tracked");
   const file = path.join(privateDirectory, name);
-  if (existsSync(file)) assert.ok(!lstatSync(file).isSymbolicLink(), "Private output cannot be a symlink");
+  const stat = lstatSync(file, { throwIfNoEntry: false });
+  if (stat) assert.ok(stat.isFile() && !stat.isSymbolicLink() && stat.nlink === 1,
+    "Private output cannot be a symlink or hard link");
 }
 mkdirSync(privateDirectory, { recursive: true, mode: 0o700 });
 chmodSync(privateDirectory, 0o700);
 for (const [name, value] of [["production-payload.json", payload], ["approval-manifest.json", manifest]]) {
   const file = path.join(privateDirectory, name);
-  writeFileSync(file, JSON.stringify(value, null, 2) + "\n", { mode: 0o600 });
+  writeFileSync(file, JSON.stringify(value, null, 2) + "\n", {
+    mode: 0o600, flag: constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW,
+  });
   chmodSync(file, 0o600);
 }
 console.log(JSON.stringify({ payloadCount: payload.length, active: 417, reviewIncluded: 0, manifest }));
