@@ -6,6 +6,7 @@ import {
   markApprovedExpired,
 } from "@/lib/db/queries";
 import type { Authorization, Vehicle } from "@/types/database";
+import { compactVehicleIdentity } from "@/lib/vehicles/identity";
 
 export const EXPIRY_THRESHOLDS_DAYS = [7, 3, 1] as const;
 
@@ -18,7 +19,7 @@ export type ExpiryAlarmResult = {
 };
 
 type AuthorizationWithVehicle = Authorization & {
-  vehicles: Pick<Vehicle, "plate_number" | "make" | "model"> | null;
+  vehicles: Pick<Vehicle, "door_number" | "plate_number" | "make" | "model"> | null;
 };
 
 function inclusiveDaysUntil(endDate: string, today: string): number {
@@ -81,7 +82,7 @@ export async function runExpiryAlarms(
     }
 
     const vehicle = Array.isArray(row.vehicles) ? row.vehicles[0] : row.vehicles;
-    const plate = vehicle?.plate_number ?? "vehicle";
+    const plate = vehicle ? compactVehicleIdentity(vehicle) : "vehicle";
     const dayLabel = daysLeft === 1 ? "1 day" : `${daysLeft} days`;
     const dedupeKey = expiryDedupeKey(row.id, daysLeft);
 

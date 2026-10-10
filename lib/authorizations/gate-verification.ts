@@ -10,7 +10,7 @@ export type GateAuthorizationRow = {
   end_date: string;
   usage_after: string;
   location: string | null;
-  vehicle: { door_number: string | null; plate_number: string; make: string; model: string } | null;
+  vehicle: { door_number: string | null; plate_number: string | null; make: string; model: string } | null;
   requester: { full_name: string; badge: string | null } | null;
 };
 
@@ -22,7 +22,7 @@ export type GateVerificationResultData = {
   details?: {
     driver: string;
     badge: string | null;
-    plate: string;
+    plate: string | null;
     doorNumber: string | null;
     vehicle: string;
     location: string | null;

@@ -86,6 +86,7 @@ function load(file) {
     if (name === "@/lib/db/queries") return queries;
     if (name === "@/lib/approvals/presentation") return load("lib/approvals/presentation.ts");
     if (name === "@/lib/dashboard/stats") return stats;
+    if (name === "@/lib/vehicles/identity") return load("lib/vehicles/identity.ts");
     if (name === "@/lib/business-date") return dateHelpers;
     if (name === "@/lib/dates") return { inclusiveDayCount: () => 7 };
     if (name === "@/lib/auth/guards") return {

@@ -55,3 +55,6 @@ __pycache__/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Generated fleet audit/candidate data and disposable test evidence
+/generated-artifacts/

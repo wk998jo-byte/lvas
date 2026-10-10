@@ -35,6 +35,7 @@ import {
   decisionActorLabel,
   formatDecisionTime,
 } from "@/lib/approvals/presentation";
+import { plateFieldValue, plateLabel } from "@/components/vehicles/plate-label";
 
 export type AuthorizationDetailVehicle = Pick<
   Vehicle,
@@ -174,7 +175,7 @@ export function AuthorizationDetailView({
   const firstApprover = one(request.first_approver);
   const usage = formatUsageAfter(request.usage_after);
   const plate = vehicle
-    ? `${vehicle.door_number ? `Door ${vehicle.door_number} · ` : ""}Plate ${vehicle.plate_number}`
+    ? `${vehicle.door_number ? `Door ${vehicle.door_number} · ` : ""}${plateLabel(vehicle)}`
     : "Request";
   const status = effectiveAuthorizationStatus(request.status, request.end_date);
 
@@ -271,7 +272,7 @@ export function AuthorizationDetailView({
                     href={`/vehicles/${vehicle.id}`}
                     className="text-[#e30613] underline-offset-4 hover:underline"
                   >
-                    {vehicle.plate_number}
+                    {plateFieldValue(vehicle)}
                   </Link>
                 </DetailRow>
                 <DetailRow icon={<Car className="size-4" />} label="Vehicle">

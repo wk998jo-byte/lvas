@@ -12,6 +12,7 @@ import { saudiTodayIsoDate } from "@/lib/business-date";
 import { getAuthorizationByPublicToken } from "@/lib/db/queries";
 import { publicTokenSchema } from "@/lib/validations";
 import { buildGateVerificationUrl } from "@/lib/authorizations/gate-url";
+import { plateLabel } from "@/components/vehicles/plate-label";
 
 export const dynamic = "force-dynamic";
 
@@ -103,7 +104,7 @@ export default async function TrackRequestPage({
             label="Vehicle"
             value={
               vehicle
-                ? `${vehicle.door_number ? `Door ${vehicle.door_number} — ` : "Door No. unavailable — "}Plate ${vehicle.plate_number} — ${vehicle.make} ${vehicle.model}`
+                ? `${vehicle.door_number ? `Door ${vehicle.door_number} — ` : "Door No. unavailable — "}${plateLabel(vehicle)} — ${vehicle.make} ${vehicle.model}`
                 : "—"
             }
           />
@@ -136,7 +137,7 @@ export default async function TrackRequestPage({
           pass={{
             id: request.id,
             doorNumber: vehicle.door_number ?? null,
-            plate: vehicle.plate_number,
+            plate: plateLabel(vehicle),
             vehicle: `${vehicle.make} ${vehicle.model}`,
             driver: employee.full_name,
             badge: employee.badge,

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import type { GateVerificationResultData } from "@/lib/authorizations/gate-verification";
+import { plateLabel } from "@/components/vehicles/plate-label";
 
 const statePresentation = {
   valid: {
@@ -132,7 +133,13 @@ export function GateVerificationResult({
                 label="Door number"
                 value={details.doorNumber ?? "Unavailable"}
               />
-              <ComparisonRow label="Vehicle plate" value={details.plate} />
+              <ComparisonRow
+                label="Vehicle plate"
+                value={plateLabel({
+                  plate_number: details.plate,
+                  door_number: details.doorNumber,
+                })}
+              />
               <ComparisonRow label="Vehicle" value={details.vehicle} />
               <ComparisonRow label="Valid from" value={details.startDate} />
               <ComparisonRow label="Valid through" value={details.endDate} />

@@ -46,7 +46,7 @@ export type Employee = {
 export type Vehicle = {
   id: string;
   door_number: string | null;
-  plate_number: string;
+  plate_number: string | null;
   make: string;
   model: string;
   year: number | null;

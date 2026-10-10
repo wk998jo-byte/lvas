@@ -19,25 +19,12 @@ import {
   TablePagination,
 } from "@/components/dashboard/table-pagination";
 import type { Vehicle } from "@/types/database";
+import { plateFieldValue } from "@/components/vehicles/plate-label";
+import { matchesVehicleSearch } from "@/lib/vehicles/identity";
 
 type VehicleDirectoryProps = {
   vehicles: Vehicle[];
 };
-
-function matches(vehicle: Vehicle, query: string) {
-  return [
-    vehicle.door_number ?? "",
-    vehicle.plate_number,
-    vehicle.make,
-    vehicle.model,
-    vehicle.color ?? "",
-    vehicle.year?.toString() ?? "",
-    vehicle.notes ?? "",
-  ]
-    .join(" ")
-    .toLowerCase()
-    .includes(query);
-}
 
 export function VehicleDirectory({ vehicles }: VehicleDirectoryProps) {
   const [query, setQuery] = useState("");
@@ -48,7 +35,7 @@ export function VehicleDirectory({ vehicles }: VehicleDirectoryProps) {
   const filtered = useMemo(() => {
     const q = deferredQuery.trim().toLowerCase();
     if (!q) return vehicles;
-    return vehicles.filter((vehicle) => matches(vehicle, q));
+    return vehicles.filter((vehicle) => matchesVehicleSearch(vehicle, q));
   }, [vehicles, deferredQuery]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -117,7 +104,7 @@ export function VehicleDirectory({ vehicles }: VehicleDirectoryProps) {
                     {vehicle.door_number ?? "—"}
                   </TableCell>
                   <TableCell className="font-semibold text-slate-900">
-                    {vehicle.plate_number}
+                    {plateFieldValue(vehicle)}
                   </TableCell>
                   <TableCell>
                     {vehicle.make} {vehicle.model}

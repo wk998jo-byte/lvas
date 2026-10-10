@@ -118,7 +118,7 @@ export async function getVehicleById(id: string): Promise<Vehicle | null> {
 
 export async function insertVehicle(input: {
   door_number: string | null;
-  plate_number: string;
+  plate_number: string | null;
   make: string;
   model: string;
   year: number | null;
@@ -151,7 +151,7 @@ export async function updateVehicleRow(
   id: string,
   fields: {
     door_number: string | null;
-    plate_number: string;
+    plate_number: string | null;
     make: string;
     model: string;
     year: number | null;
@@ -853,7 +853,7 @@ export async function listInsightAuthorizations(sinceIso: string, limit = 500, l
     created_at: string;
     approved_at: string | null;
     rejected_at: string | null;
-    vehicles: { door_number: string | null; plate_number: string } | null;
+    vehicles: { door_number: string | null; plate_number: string | null } | null;
   }>(
     `
       select

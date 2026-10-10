@@ -7,8 +7,9 @@ export const emailSchema = z.string().email();
 const plateSchema = z
   .string()
   .trim()
-  .min(1, "Plate number is required")
-  .max(32, "Plate number is too long");
+  .max(32, "Plate number is too long")
+  .nullish()
+  .transform((value) => value || null);
 
 const yearSchema = z
   .union([z.string(), z.number(), z.null(), z.undefined()])
