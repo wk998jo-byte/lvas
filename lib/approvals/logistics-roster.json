@@ -1,17 +1,24 @@
 [
   {
+    "fullName": "Muhammad Javed Iqbal Khan",
+    "email": "javed.khan@binquraya.com",
+    "badge": "1444",
+    "position": "Section Head Logistics",
+    "locations": ["Asset Department"]
+  },
+  {
     "fullName": "Waqar Ahmad",
     "email": "waqar.ahmad@binquraya.com",
     "badge": "81663",
     "position": "Logistic Coordinator",
-    "locations": ["*"]
+    "locations": ["Dhahran Base"]
   },
   {
     "fullName": "Muhammad Anees Ejaz",
     "email": "muhammad.ejaz@binquraya.com",
     "badge": "11220",
     "position": "Equipment Coordinator",
-    "locations": ["*"]
+    "locations": ["Dhahran Base"]
   },
   {
     "fullName": "Hermes Jr. Gateren Rosalejos",
@@ -25,7 +32,7 @@
     "email": "mohammed.ansari@binquraya.com",
     "badge": "81337",
     "position": "Logistic Supervisor",
-    "locations": ["Fabshop-Salasil"]
+    "locations": ["Fabshop-Salsil"]
   },
   {
     "fullName": "Muhammad Ali Muhammad Ijaz",
@@ -68,5 +75,22 @@
     "badge": "81386",
     "position": "Logistic Coordinator",
     "locations": ["Zuluf"]
+  },
+  {
+    "fullName": "Noorah",
+    "email": "noorah.alshamsi@binquraya.com",
+    "badge": "",
+    "position": "",
+    "locations": [
+      "Dhahran Base",
+      "Asset Department",
+      "Facility",
+      "Fabshop-Salsil",
+      "Jafurah",
+      "MGS",
+      "Rastanura",
+      "Yanbu",
+      "Zuluf"
+    ]
   }
 ]

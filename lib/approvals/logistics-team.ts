@@ -2,8 +2,9 @@ import roster from "@/lib/approvals/logistics-roster.json";
 
 export const PROJECT_LOCATIONS = [
   "Dhahran Base",
+  "Asset Department",
   "Facility",
-  "Fabshop-Salasil",
+  "Fabshop-Salsil",
   "Jafurah",
   "MGS",
   "Rastanura",
@@ -30,8 +31,14 @@ export type LogisticsRosterEntry = {
 };
 
 function expandLocations(locations: string[]): ProjectLocation[] {
-  if (locations.includes("*")) return [...PROJECT_LOCATIONS];
-  return locations.filter(isProjectLocation);
+  if (
+    locations.length === 0 ||
+    locations.some((location) => !isProjectLocation(location)) ||
+    new Set(locations).size !== locations.length
+  ) {
+    throw new Error("Logistics roster must use explicit official locations");
+  }
+  return locations as ProjectLocation[];
 }
 
 export const LOGISTICS_ROSTER: LogisticsRosterEntry[] = roster.map((entry) => ({

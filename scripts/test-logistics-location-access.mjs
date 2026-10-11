@@ -9,9 +9,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import ts from "typescript";
+import { createRequire } from "node:module";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const locations = ["Dhahran Base", "Facility", "Fabshop-Salasil", "Jafurah", "MGS", "Rastanura", "Yanbu", "Zuluf"];
+const nativeRequire = createRequire(import.meta.url);
+const locations = ["Dhahran Base", "Asset Department", "Facility", "Fabshop-Salsil", "Jafurah", "MGS", "Rastanura", "Yanbu", "Zuluf"];
+const retiredFabshop = ["Fabshop", "Salasil"].join("-");
+const retiredDepartment = ["Dhahran Base", "Asset Department"].join("-");
 const rows = locations.map((location, index) => ({
   id: `request-${index}`, location, status: "approved", approval_stage: 2,
   vehicle_id: location, start_date: "2026-10-06", end_date: "2026-10-12",
@@ -19,8 +23,11 @@ const rows = locations.map((location, index) => ({
   authorized_to: `Employee ${location}`,
 }));
 rows.push({ ...rows[0], id: "legacy-null", location: null, vehicle_id: "legacy" });
-rows.push({ ...rows[3], id: "pending-jafurah", status: "pending", approval_stage: 1, vehicle_id: "Yanbu" });
-rows.push({ ...rows[6], id: "pending-yanbu", status: "pending", approval_stage: 1 });
+rows.push({ ...rows[0], id: "legacy-fabshop", location: retiredFabshop, vehicle_id: "legacy-fabshop" });
+const jafurahRow = rows.find(row => row.location === "Jafurah");
+const yanbuRow = rows.find(row => row.location === "Yanbu");
+rows.push({ ...jafurahRow, id: "pending-jafurah", status: "pending", approval_stage: 1, vehicle_id: "Yanbu" });
+rows.push({ ...yanbuRow, id: "pending-yanbu", status: "pending", approval_stage: 1 });
 let assigned = ["Jafurah"];
 let role = "logistics_approver";
 let failDatabase = false;
@@ -76,12 +83,15 @@ const dateHelpers = {
 let queries;
 let stats;
 function load(file) {
-  const module = { exports: {} };
+  const loaded = { exports: {} };
   const compiled = ts.transpileModule(source(file), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
+    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
     fileName: file,
   }).outputText;
   const require = (name) => {
+    if (name === "zod") return nativeRequire(name);
+    if (name === "@/lib/approvals/logistics-team") return load("lib/approvals/logistics-team.ts");
+    if (name === "@/lib/approvals/logistics-roster.json") return JSON.parse(source("lib/approvals/logistics-roster.json"));
     if (name === "@/lib/db/pool") return pool;
     if (name === "@/lib/db/queries") return queries;
     if (name === "@/lib/approvals/presentation") return load("lib/approvals/presentation.ts");
@@ -104,9 +114,39 @@ function load(file) {
     if (name === "react/jsx-runtime") return { jsx, jsxs: jsx, Fragment: "fragment" };
     return components;
   };
-  vm.runInNewContext(compiled, { module, exports: module.exports, require }, { filename: file });
-  return module.exports;
+  vm.runInNewContext(compiled, { module: loaded, exports: loaded.exports, require }, { filename: file });
+  return loaded.exports;
 }
+const team = load("lib/approvals/logistics-team.ts");
+assert.deepEqual(Array.from(team.PROJECT_LOCATIONS), locations);
+const validation = load("lib/validations/index.ts");
+const requestInput = {
+  vehicle_id: "00000000-0000-4000-8000-000000000001",
+  employee_id: "00000000-0000-4000-8000-000000000002",
+  id_last4: "1234", contact_mobile: "0500000000",
+  purpose: "",
+  start_date: "2030-01-01", end_date: "2030-01-02",
+  duration_label: "2 days", justification: "Synthetic test justification",
+};
+for (const location of locations) {
+  assert.equal(validation.publicRequestSchema.safeParse({ ...requestInput, location }).success, true);
+}
+for (const location of [retiredFabshop, retiredDepartment, "*", "asset department", "Asset Department "]) {
+  assert.equal(validation.publicRequestSchema.safeParse({ ...requestInput, location }).success, false);
+}
+assert.ok(source("components/public/public-request-form.tsx").includes("PROJECT_LOCATIONS.map("));
+const targets = {
+  "1444": ["Asset Department"], "81663": ["Dhahran Base"], "11220": ["Dhahran Base"],
+  "9146": ["Facility"], "81337": ["Fabshop-Salsil"], "11027": ["Jafurah"],
+  "8627": ["MGS"], "8970": ["Rastanura"], "81339": ["Yanbu"], "81386": ["Zuluf"],
+  "81732": ["Yanbu"],
+};
+for (const [badge, expected] of Object.entries(targets)) {
+  assert.deepEqual(Array.from(team.LOGISTICS_ROSTER.find(person => person.badge === badge).locations), expected);
+}
+const noorah = team.LOGISTICS_ROSTER.find(person => person.fullName === "Noorah");
+assert.deepEqual(Array.from(noorah.locations), locations);
+assert.ok(team.LOGISTICS_ROSTER.every(person => person.locations.every(location => locations.includes(location))));
 queries = load("lib/db/queries.ts");
 stats = load("lib/dashboard/stats.ts");
 const history = load("app/(dashboard)/history/page.tsx").default;
@@ -123,7 +163,7 @@ function find(node, type) {
 }
 
 // Query boundary: exact matching, all locations, no locations, and admin.
-for (const scope of [["Jafurah"], locations, [], undefined, ["jafurah"], ["Jafurah "], ["Jafurah') OR TRUE --"]]) {
+for (const scope of [...locations.map(location => [location]), locations, [], undefined, ["jafurah"], ["Jafurah "], ["Jafurah') OR TRUE --"]]) {
   const expected = rows.filter((row) =>
     row.status === "approved" && (scope === undefined || (row.location !== null && scope.includes(row.location))));
   const actual = await queries.listHistoryAuthorizations(300, scope);
@@ -149,17 +189,18 @@ for (const scope of [["Jafurah"], locations, [], undefined, ["jafurah"], ["Jafur
 // Real server pages enforce the same boundary; denied and nonexistent match.
 assigned = ["Jafurah"];
 assert.deepEqual(Array.from(find(await history(), "ApprovalsTable").props.requests, (row) => row.location), ["Jafurah"]);
-assert.equal((await detail({ params: Promise.resolve({ id: rows[3].id }) })).props.request.location, "Jafurah");
-for (const id of [rows[6].id, "legacy-null", "nonexistent"]) {
+assert.equal((await detail({ params: Promise.resolve({ id: jafurahRow.id }) })).props.request.location, "Jafurah");
+for (const id of [yanbuRow.id, "legacy-null", "legacy-fabshop", "nonexistent"]) {
   await assert.rejects(detail({ params: Promise.resolve({ id }) }), (error) => error.code === 404);
 }
 assigned = locations;
-assert.equal(find(await history(), "ApprovalsTable").props.requests.length, 8);
+assert.equal(find(await history(), "ApprovalsTable").props.requests.length, locations.length);
+await assert.rejects(detail({ params: Promise.resolve({ id: "legacy-fabshop" }) }), (error) => error.code === 404);
 assigned = [];
 assert.equal(find(await history(), "ApprovalsTable").props.requests.length, 0);
-await assert.rejects(detail({ params: Promise.resolve({ id: rows[3].id }) }), (error) => error.code === 404);
+await assert.rejects(detail({ params: Promise.resolve({ id: jafurahRow.id }) }), (error) => error.code === 404);
 role = "admin";
-assert.equal(find(await history(), "ApprovalsTable").props.requests.length, 9);
+assert.equal(find(await history(), "ApprovalsTable").props.requests.length, locations.length + 2);
 assert.equal((await detail({ params: Promise.resolve({ id: "legacy-null" }) })).props.request.id, "legacy-null");
 
 // Stage-1 routing stays intact, without leaking cross-location overlap data.
@@ -186,7 +227,7 @@ assert.ok(calls.slice(adminStart).filter(({ text }) => /from authorizations/.tes
 // Raw database errors are not included in the touched page responses.
 failDatabase = true;
 assert.ok(!JSON.stringify(await history()).includes("PRIVATE DATABASE"));
-assert.ok(!JSON.stringify(await detail({ params: Promise.resolve({ id: rows[3].id }) })).includes("PRIVATE DATABASE"));
+assert.ok(!JSON.stringify(await detail({ params: Promise.resolve({ id: jafurahRow.id }) })).includes("PRIVATE DATABASE"));
 assert.ok(!source("app/(dashboard)/history/page.tsx").includes("error.message"));
 assert.ok(!source("app/(dashboard)/history/[id]/page.tsx").includes("error.message"));
-console.log("logistics-location-access: PASS (queries, server pages, dashboard, safe denials, overlap redaction)");
+console.log("logistics-location-access: PASS (exact 9 locations, request validation/dropdown, full roster, separate departments, queries, pages, legacy denial, overlap redaction)");
