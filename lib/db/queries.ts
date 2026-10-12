@@ -651,8 +651,7 @@ export async function getAuthorizationById(id: string): Promise<Authorization | 
   );
 }
 
-// Separate from insertNotification: expiry alarms still rely on its unique-error
-// behavior. The committed notification is the at-most-once email attempt claim.
+// The committed notification is the at-most-once email attempt claim.
 export async function insertApprovalNotificationOnce(input: {
   user_id: string;
   authorization_id: string;
@@ -720,6 +719,66 @@ export async function getApprovalEmailContext(id: string): Promise<ApprovalEmail
      left join profiles fp on fp.id=a.first_approver_id
      where a.id=$1`,
     [id],
+  );
+}
+
+export async function insertExpiryNotificationOnce(input: {
+  userId: string;
+  authorizationId: string;
+  title: string;
+  body: string;
+  dedupeKey: string;
+  sentAt: string;
+  endDate: string;
+  requiresLogistics: boolean;
+}): Promise<boolean> {
+  const row = await queryOne<{ id: string }>(
+    `insert into notifications
+       (user_id,authorization_id,type,title,body,dedupe_key,is_read,sent_at)
+     select $1,$2,'expiry_warning',$3,$4,$5,false,$6::timestamptz
+     where exists (
+       select 1 from authorizations a
+       where a.id=$2 and a.status='approved' and a.end_date=$7::date
+         and (
+           ($8::boolean and exists (
+             select 1 from profiles p join logistics_approver_locations l on l.profile_id=p.id
+             where p.id=$1 and p.is_active=true and p.role='logistics_approver' and l.location=a.location
+           ))
+           or (not $8::boolean and $1::uuid=coalesce(a.requester_id,a.approver_id))
+         )
+     )
+     on conflict (dedupe_key) where dedupe_key is not null do nothing returning id`,
+    [input.userId,input.authorizationId,input.title,input.body,input.dedupeKey,
+      input.sentAt,input.endDate,input.requiresLogistics],
+  );
+  return Boolean(row);
+}
+
+export type ExpiryEmailContext = Omit<ApprovalEmailContext, "logistics_approver_name" | "first_approved_at"> & {
+  recipient_email: string;
+  status: Authorization["status"];
+};
+
+export async function getExpiryEmailContext(input: {
+  authorizationId: string;
+  recipientId: string;
+  endDate: string;
+}): Promise<ExpiryEmailContext | null> {
+  return queryOne<ExpiryEmailContext>(
+    `select p.email as recipient_email,a.status,
+       coalesce(e.full_name,r.full_name) as requester_name,e.badge,
+       v.door_number,v.make,v.model,a.location,
+       a.start_date::text,a.end_date::text,coalesce(a.justification,a.purpose) as purpose
+     from authorizations a
+     join profiles p on p.id=$2 and p.is_active=true and p.role='logistics_approver'
+     left join employees e on e.id=a.employee_id
+     left join profiles r on r.id=a.requester_id
+     left join vehicles v on v.id=a.vehicle_id
+     where a.id=$1 and a.status='approved' and a.end_date=$3::date
+       and exists (
+         select 1 from logistics_approver_locations l where l.profile_id=p.id and l.location=a.location
+       )`,
+    [input.authorizationId,input.recipientId,input.endDate],
   );
 }
 

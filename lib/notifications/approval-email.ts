@@ -27,7 +27,7 @@ function warn(input: ApprovalEventInput, recipientId: string, reason: string) {
   });
 }
 
-function approvalUrl(authorizationId: string): string {
+export function approvalUrl(authorizationId: string): string {
   const configured = process.env.APP_URL?.trim();
   if (!configured) throw new Error("Approval email base URL is not configured.");
   const base = new URL(configured);

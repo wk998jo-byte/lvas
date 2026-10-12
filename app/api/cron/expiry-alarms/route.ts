@@ -10,6 +10,9 @@ import { runExpiryAlarms } from "@/lib/expiry-alarms";
  * shortly after 00:05 Asia/Riyadh, with
  *   Authorization: Bearer <CRON_SECRET>
  * Store CRON_SECRET in Replit Secrets. Do not hardcode it.
+ * Before publishing, configure EXPIRY_EMAIL_START_AT with the actual ISO
+ * cutover instant (including timezone). Emails begin on subsequent Saudi
+ * business dates; absent/invalid activation disables email, not in-app alerts.
  */
 
 function authorizeCron(request: Request): boolean {
@@ -34,11 +37,11 @@ export async function GET(request: Request) {
   try {
     const result = await runExpiryAlarms();
     return NextResponse.json({ ok: true, ...result });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Expiry alarms failed",
+        error: "Expiry alarms failed",
       },
       { status: 500 },
     );
