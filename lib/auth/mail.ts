@@ -5,6 +5,24 @@ export function isPasswordResetEmailConfigured(): boolean {
 }
 
 export async function sendPasswordResetEmail(to: string, resetUrl: string) {
+  await sendSmtpEmail({
+    to,
+    subject: "Reset your LVAS password",
+    text: [
+      "A password reset was requested for your LVAS account.",
+      "",
+      "Open this link to choose a new password. It expires in 30 minutes and can be used once:",
+      resetUrl,
+      "",
+      "If you did not request this, you can ignore this email.",
+    ].join("\n"),
+  });
+}
+
+export async function sendSmtpEmail(
+  message: { to: string; subject: string; text: string },
+  options?: { boundedTimeouts: boolean },
+) {
   const host = process.env.SMTP_HOST?.trim();
   const from = process.env.SMTP_FROM?.trim();
   if (!host || !from) {
@@ -19,19 +37,15 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string) {
     port,
     secure: port === 465,
     auth: user ? { user, pass: pass ?? "" } : undefined,
+    ...(options?.boundedTimeouts ? {
+      connectionTimeout: 5_000,
+      greetingTimeout: 5_000,
+      socketTimeout: 10_000,
+    } : {}),
   });
 
   await transporter.sendMail({
     from,
-    to,
-    subject: "Reset your LVAS password",
-    text: [
-      "A password reset was requested for your LVAS account.",
-      "",
-      "Open this link to choose a new password. It expires in 30 minutes and can be used once:",
-      resetUrl,
-      "",
-      "If you did not request this, you can ignore this email.",
-    ].join("\n"),
+    ...message,
   });
 }

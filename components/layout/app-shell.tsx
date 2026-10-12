@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   Car,
   ChevronLeft,
@@ -37,6 +37,9 @@ type AppShellProps = {
 };
 
 const STORAGE_KEY = "lvas-sidebar-collapsed";
+const subscribeToStoredCollapse = () => () => {};
+const getStoredCollapse = () => window.localStorage.getItem(STORAGE_KEY) === "1";
+const getServerCollapse = () => null;
 
 function pageMeta(pathname: string): {
   title: string;
@@ -95,17 +98,20 @@ function pageMeta(pathname: string): {
 
 export function AppShell({ profile, pendingCount, children }: AppShellProps) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
+  const storedCollapse = useSyncExternalStore(subscribeToStoredCollapse, getStoredCollapse, getServerCollapse);
+  const [collapseOverride, setCollapsed] = useState<boolean | null>(null);
+  const collapsed = collapseOverride ?? false;
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [previousPathname, setPreviousPathname] = useState(pathname);
 
-  useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored === "1") setCollapsed(true);
-  }, []);
+  if (collapseOverride === null && storedCollapse !== null) {
+    setCollapsed(storedCollapse);
+  }
 
-  useEffect(() => {
+  if (previousPathname !== pathname) {
+    setPreviousPathname(pathname);
     setMobileOpen(false);
-  }, [pathname]);
+  }
 
   function toggleCollapsed() {
     setCollapsed((prev) => {

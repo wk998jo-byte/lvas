@@ -3,7 +3,6 @@
 import Link from "next/link";
 import {
   useDeferredValue,
-  useEffect,
   useMemo,
   useState,
   useTransition,
@@ -97,9 +96,11 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
 
-  useEffect(() => {
+  const [paginationInputs, setPaginationInputs] = useState({ query: deferredQuery, filter, pageSize });
+  if (paginationInputs.query !== deferredQuery || paginationInputs.filter !== filter || paginationInputs.pageSize !== pageSize) {
+    setPaginationInputs({ query: deferredQuery, filter, pageSize });
     setPage(1);
-  }, [deferredQuery, filter, pageSize]);
+  }
 
   const currentPage = Math.min(page, pageCount);
   const start = (currentPage - 1) * pageSize;

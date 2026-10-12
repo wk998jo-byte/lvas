@@ -65,10 +65,12 @@ export function EmployeesBrowser({
   const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
   const [draftQuery, setDraftQuery] = useState(query);
+  const [previousQuery, setPreviousQuery] = useState(query);
 
-  useEffect(() => {
+  if (previousQuery !== query) {
+    setPreviousQuery(query);
     setDraftQuery(query);
-  }, [query]);
+  }
 
   function pushParams(changes: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());

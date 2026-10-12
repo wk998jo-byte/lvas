@@ -651,6 +651,78 @@ export async function getAuthorizationById(id: string): Promise<Authorization | 
   );
 }
 
+// Separate from insertNotification: expiry alarms still rely on its unique-error
+// behavior. The committed notification is the at-most-once email attempt claim.
+export async function insertApprovalNotificationOnce(input: {
+  user_id: string;
+  authorization_id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  dedupe_key: string;
+}): Promise<boolean> {
+  const row = await queryOne<{ id: string }>(
+    `insert into notifications
+       (user_id,authorization_id,type,title,body,dedupe_key)
+     values ($1,$2,$3,$4,$5,$6)
+     on conflict (dedupe_key) where dedupe_key is not null do nothing
+     returning id`,
+    [input.user_id,input.authorization_id,input.type,input.title,input.body,input.dedupe_key],
+  );
+  return Boolean(row);
+}
+
+export async function getApprovalEmailRecipient(input: {
+  profileId: string;
+  authorizationId: string;
+  role: "admin" | "logistics_approver";
+}): Promise<{ id: string; email: string } | null> {
+  return queryOne<{ id: string; email: string }>(
+    `select p.id,p.email from profiles p
+     join authorizations a on a.id=$2
+     where p.id=$1 and p.is_active=true and p.role=$3
+       and (
+         ($3='admin' and a.approver_id=p.id)
+         or ($3='logistics_approver' and exists (
+           select 1 from logistics_approver_locations l
+           where l.profile_id=p.id and l.location=a.location
+         ))
+       )`,
+    [input.profileId,input.authorizationId,input.role],
+  );
+}
+
+export type ApprovalEmailContext = {
+  requester_name: string | null;
+  badge: string | null;
+  door_number: string | null;
+  make: string | null;
+  model: string | null;
+  location: string | null;
+  start_date: string;
+  end_date: string;
+  purpose: string | null;
+  logistics_approver_name: string | null;
+  first_approved_at: string | null;
+};
+
+export async function getApprovalEmailContext(id: string): Promise<ApprovalEmailContext | null> {
+  return queryOne<ApprovalEmailContext>(
+    `select coalesce(e.full_name,p.full_name) as requester_name,e.badge,
+       v.door_number,v.make,v.model,a.location,
+       a.start_date::text,a.end_date::text,
+       coalesce(a.justification,a.purpose) as purpose,
+       fp.full_name as logistics_approver_name,a.first_approved_at
+     from authorizations a
+     left join employees e on e.id=a.employee_id
+     left join profiles p on p.id=a.requester_id
+     left join vehicles v on v.id=a.vehicle_id
+     left join profiles fp on fp.id=a.first_approver_id
+     where a.id=$1`,
+    [id],
+  );
+}
+
 export async function getAuthorizationDetail(
   id: string,
   locations?: readonly string[],

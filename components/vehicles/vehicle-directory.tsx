@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { ArrowUpRight, Car, Search } from "lucide-react";
 
 import { EmptyState } from "@/components/dashboard/empty-state";
@@ -40,9 +40,11 @@ export function VehicleDirectory({ vehicles }: VehicleDirectoryProps) {
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
 
-  useEffect(() => {
+  const [paginationInputs, setPaginationInputs] = useState({ query: deferredQuery, pageSize });
+  if (paginationInputs.query !== deferredQuery || paginationInputs.pageSize !== pageSize) {
+    setPaginationInputs({ query: deferredQuery, pageSize });
     setPage(1);
-  }, [deferredQuery, pageSize]);
+  }
 
   const currentPage = Math.min(page, pageCount);
   const start = (currentPage - 1) * pageSize;

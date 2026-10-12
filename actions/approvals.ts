@@ -23,6 +23,7 @@ import {
   rejectAuthorizationSchema,
 } from "@/lib/validations";
 import type { Authorization } from "@/types/database";
+import { notifyApprovalEvent } from "@/lib/notifications/approval-email";
 
 function revalidateApprovalPaths(id: string) {
   revalidatePath("/history");
@@ -101,10 +102,10 @@ export async function approveAuthorization(
         const finalApproverId =
           data.approver_id ?? (await getDefaultApproverId());
         if (finalApproverId) {
-          await insertNotification({
-            user_id: finalApproverId,
-            authorization_id: data.id,
-            type: "request_submitted",
+          await notifyApprovalEvent({
+            authorizationId: data.id,
+            event: "ready_for_final_approval",
+            recipientIds: [finalApproverId],
             title: "Request ready for final approval",
             body: `${plate} (${data.start_date} → ${data.end_date}) at ${data.location ?? "the project"} was approved by logistics and is waiting for final approval.`,
           });

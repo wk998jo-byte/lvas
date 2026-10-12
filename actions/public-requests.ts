@@ -24,7 +24,6 @@ import {
   getLastLimitRequestAt,
   getVehicleById,
   insertAuthorization,
-  insertNotification,
   listAuthorizationsByEmployeeId,
   listLogisticsApproverIdsForLocation,
   lookupPublicEmployees,
@@ -43,6 +42,7 @@ import {
   SAFE_REQUEST_ERROR,
   TOO_MANY_ATTEMPTS,
 } from "@/lib/security/rate-limit";
+import { notifyApprovalEvent } from "@/lib/notifications/approval-email";
 
 export type { PublicEmployee };
 
@@ -201,17 +201,13 @@ export async function submitPublicRequest(
       justification: parsed.data.justification,
     });
 
-    await Promise.all(
-      logisticsApproverIds.map((userId) =>
-        insertNotification({
-          user_id: userId,
-          authorization_id: data.id,
-          type: "request_submitted",
-          title: "New authorization request",
-          body: `${employee.full_name} (badge ${employee.badge}) requested a vehicle at ${parsed.data.location} from ${parsed.data.start_date} to ${parsed.data.end_date}.`,
-        }),
-      ),
-    );
+    await notifyApprovalEvent({
+      authorizationId: data.id,
+      event: "request_submitted",
+      recipientIds: logisticsApproverIds,
+      title: "New authorization request",
+      body: `${employee.full_name} (badge ${employee.badge}) requested a vehicle at ${parsed.data.location} from ${parsed.data.start_date} to ${parsed.data.end_date}.`,
+    });
 
     revalidatePath("/", "layout");
 

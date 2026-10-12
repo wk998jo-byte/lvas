@@ -61,21 +61,26 @@ const facade = new Proxy({}, {
 });
 function load(file) {
   if (cache.has(file)) return cache.get(file);
-  const module = { exports: {} };
-  cache.set(file, module.exports);
+  const cjsModule = { exports: {} };
+  cache.set(file, cjsModule.exports);
   const code = ts.transpileModule(readFileSync(path.join(root, file), "utf8"), {
     fileName: file,
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
   }).outputText;
   let hookIndex = 0;
   const require = (name) => {
+    if (name === "nodemailer") return {
+      createTransport: () => ({ sendMail: async () => {} }),
+    };
     if (name === "@/lib/db/pool") return adapter;
     if (name === "@/lib/auth/guards") return { requireRole: async () => ({ id: role === "admin" ? adminId : logId, role, full_name: "Synthetic staff", email: "test@example.invalid" }) };
     if (name === "@/lib/auth/approver") return { getDefaultApproverId: async () => adminId };
     if (name === "@/lib/security/rate-limit") return { consumeRateLimit: async () => ({ allowed: true }) };
     if (name === "next/cache") return { revalidatePath: (value) => revalidated.push(value) };
     if (name === "next/navigation") return { notFound: () => { throw Object.assign(new Error("Not found"), { code: 404 }); } };
-    if (name === "next/link") return ({ href, children, className }) => React.createElement("a", { href, className }, children);
+    if (name === "next/link") return function MockNextLink({ href, children, className }) {
+      return React.createElement("a", { href, className }, children);
+    };
     if (name === "sonner") return { toast: { success() {}, error() {} } };
     if (name === "qrcode.react") return { QRCodeSVG: ({ value }) => React.createElement("svg", { "data-qr-value": value }) };
     if (name === "@/actions/public-requests") return { lookupRequestsByBadge: async () => { throw new Error("Unexpected lookup submission"); } };
@@ -96,12 +101,18 @@ function load(file) {
     return nativeRequire(name);
   };
   vm.runInNewContext(code, {
-    module, exports: module.exports, require, Date: TestDate, URL, Buffer,
-    process: { env: { APP_URL: "https://lvas.example.invalid" } },
-    console: { warn: (...args) => warnings.push(args.join(" ")), error: (...args) => warnings.push(args.join(" ")) },
+    module: cjsModule, exports: cjsModule.exports, require, Date: TestDate, URL, Buffer,
+    process: { env: {
+      APP_URL: "https://lvas.example.invalid",
+      SMTP_HOST: "smtp.example.invalid", SMTP_FROM: "sender@example.invalid",
+    } },
+    console: {
+      warn: (...args) => warnings.push(args.map(value => typeof value === "string" ? value : JSON.stringify(value)).join(" ")),
+      error: (...args) => warnings.push(args.join(" ")),
+    },
   }, { filename: file });
-  cache.set(file, module.exports);
-  return module.exports;
+  cache.set(file, cjsModule.exports);
+  return cjsModule.exports;
 }
 const html = (node) => renderToStaticMarkup(node);
 const buttons = (markup) => [...markup.matchAll(/<button\b[^>]*>(.*?)<\/button>/gs)].map(m => m[1].replace(/<[^>]+>/g, "").trim());
@@ -142,7 +153,8 @@ try {
     create temp table employees (id uuid,full_name text,badge text,department text,mobile text);
     create temp table vehicles (id uuid,plate_number text,make text,model text,year integer,color text,is_active boolean,notes text,created_by uuid,created_at timestamptz,updated_at timestamptz,door_number text);
     create temp table logistics_approver_locations (profile_id uuid,location text);
-    create temp table notifications (user_id uuid,authorization_id uuid,type text,title text,body text,is_read boolean,sent_at timestamptz,dedupe_key text);
+    create temp table notifications (id uuid default gen_random_uuid(),user_id uuid,authorization_id uuid,type text,title text,body text,is_read boolean,sent_at timestamptz,dedupe_key text);
+    create unique index approval_ux_notification_dedupe on notifications(dedupe_key) where dedupe_key is not null;
     create temp table authorizations (
       id uuid,vehicle_id uuid,requester_id uuid,employee_id uuid,public_token uuid,contact_mobile text,
       approver_id uuid,status text,start_date date,end_date date,duration_label text,usage_after time,
@@ -277,7 +289,14 @@ try {
   preparationFailure = false;
   assert.equal((await read(preparationId)).approval_stage, 2);
   assert.equal(warnings.length, 5);
-  assert.ok(warnings.every(message => message === "LVAS decision notification delivery failed"));
+  for (const message of warnings) {
+    if (message === "LVAS decision notification delivery failed") continue;
+    assert.ok(message.startsWith("LVAS approval email event "));
+    const detail = JSON.parse(message.slice("LVAS approval email event ".length));
+    assert.equal(detail.reason, "notification_creation_failed");
+    assert.equal(detail.event, "ready_for_final_approval");
+    assert.equal(detail.recipientProfileId, adminId);
+  }
   databaseFailure = true;
   assert.doesNotMatch(JSON.stringify(await actions.approveAuthorization({ id: preparationId })), /PRIVATE/);
   assert.doesNotMatch(JSON.stringify(await actions.rejectAuthorization({ id: preparationId, rejection_reason: "Reason" })), /PRIVATE/);
