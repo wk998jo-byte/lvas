@@ -13,7 +13,9 @@ import { createRequire } from "node:module";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const nativeRequire = createRequire(import.meta.url);
-const locations = ["Dhahran Base", "Asset Department", "Facility", "Fabshop-Salsil", "Jafurah", "MGS", "Rastanura", "Yanbu", "Zuluf"];
+const originalLocations = ["Dhahran Base", "Asset Department", "Facility", "Fabshop-Salsil", "Jafurah", "MGS", "Rastanura", "Yanbu", "Zuluf"];
+const newLocations = ["Central Workshop", "RMD Salasil Workshop", "Rigmove", "Rental"];
+const locations = [...originalLocations, ...newLocations];
 const retiredFabshop = ["Fabshop", "Salasil"].join("-");
 const retiredDepartment = ["Dhahran Base", "Asset Department"].join("-");
 const rows = locations.map((location, index) => ({
@@ -119,6 +121,8 @@ function load(file) {
 }
 const team = load("lib/approvals/logistics-team.ts");
 assert.deepEqual(Array.from(team.PROJECT_LOCATIONS), locations);
+assert.equal(team.PROJECT_LOCATIONS.length, 13);
+assert.equal(new Set(team.PROJECT_LOCATIONS).size, 13);
 const validation = load("lib/validations/index.ts");
 const requestInput = {
   vehicle_id: "00000000-0000-4000-8000-000000000001",
@@ -131,7 +135,8 @@ const requestInput = {
 for (const location of locations) {
   assert.equal(validation.publicRequestSchema.safeParse({ ...requestInput, location }).success, true);
 }
-for (const location of [retiredFabshop, retiredDepartment, "*", "asset department", "Asset Department "]) {
+for (const location of [retiredFabshop, retiredDepartment, "*", "asset department", "Asset Department ",
+  "RMD Salasel Workshop", "RMD Salasil", "Rig Move", "CentralWorkshop"]) {
   assert.equal(validation.publicRequestSchema.safeParse({ ...requestInput, location }).success, false);
 }
 assert.ok(source("components/public/public-request-form.tsx").includes("PROJECT_LOCATIONS.map("));
@@ -140,12 +145,17 @@ const targets = {
   "9146": ["Facility"], "81337": ["Fabshop-Salsil"], "11027": ["Jafurah"],
   "8627": ["MGS"], "8970": ["Rastanura"], "81339": ["Yanbu"], "81386": ["Zuluf"],
   "81732": ["Yanbu"],
+  "8974": ["Central Workshop"], "8701": ["RMD Salasil Workshop"],
+  "11124": ["Rigmove"], "1685": ["Rental"],
 };
 for (const [badge, expected] of Object.entries(targets)) {
   assert.deepEqual(Array.from(team.LOGISTICS_ROSTER.find(person => person.badge === badge).locations), expected);
 }
 const noorah = team.LOGISTICS_ROSTER.find(person => person.fullName === "Noorah");
-assert.deepEqual(Array.from(noorah.locations), locations);
+assert.deepEqual(Array.from(noorah.locations), originalLocations);
+for (const location of newLocations) {
+  assert.equal(team.LOGISTICS_ROSTER.filter(person => person.locations.includes(location)).length, 1);
+}
 assert.ok(team.LOGISTICS_ROSTER.every(person => person.locations.every(location => locations.includes(location))));
 queries = load("lib/db/queries.ts");
 stats = load("lib/dashboard/stats.ts");
@@ -230,4 +240,4 @@ assert.ok(!JSON.stringify(await history()).includes("PRIVATE DATABASE"));
 assert.ok(!JSON.stringify(await detail({ params: Promise.resolve({ id: jafurahRow.id }) })).includes("PRIVATE DATABASE"));
 assert.ok(!source("app/(dashboard)/history/page.tsx").includes("error.message"));
 assert.ok(!source("app/(dashboard)/history/[id]/page.tsx").includes("error.message"));
-console.log("logistics-location-access: PASS (exact 9 locations, request validation/dropdown, full roster, separate departments, queries, pages, legacy denial, overlap redaction)");
+console.log("logistics-location-access: PASS (exact 13 locations, unchanged original nine/Noorah scope, four single-site approvers, request validation/dropdown, queries, pages, legacy denial, overlap redaction)");

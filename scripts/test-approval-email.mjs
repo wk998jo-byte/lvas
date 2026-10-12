@@ -20,6 +20,7 @@ const identity = (await pool.query("select current_setting('data_directory') as 
 assert.equal(identity.dir, "/tmp/lvas-approval-email-pg", "Only this disposable cluster is permitted");
 const schema = readFileSync(path.join(root, "db/schema.sql"), "utf8");
 const ids = Object.fromEntries(["ejaz","noorah","waqar","jafurah","inactive","empty","invalid",
+  "ashwin","ninju","khalil","anwin",
   "admin","otherAdmin","employee","vehicle"].map(k => [k, randomUUID()]));
 const fixtureEnv = {
   NODE_ENV: "production", APP_URL: "https://lvas.example.invalid",
@@ -94,7 +95,8 @@ function load(file) {
 async function reset() {
   await pool.query("drop schema public cascade; create schema public");
   await pool.query(schema);
-  for (const name of ["ejaz","noorah","waqar","jafurah","inactive","empty","invalid","admin","otherAdmin"]) {
+  for (const name of ["ejaz","noorah","waqar","jafurah","inactive","empty","invalid","admin","otherAdmin",
+    "ashwin","ninju","khalil","anwin"]) {
     await pool.query(`insert into profiles(id,full_name,email,role,is_active)
       values($1,$2,$3,$4,$5)`,[
       ids[name],"Synthetic "+name,
@@ -107,6 +109,8 @@ async function reset() {
     ejaz:["Dhahran Base"], noorah:["Dhahran Base","Jafurah","Facility"],
     waqar:["Dhahran Base"], jafurah:["Jafurah"], inactive:["Dhahran Base"],
     empty:["Facility"], invalid:["Facility"],
+    ashwin:["Central Workshop"], ninju:["RMD Salasil Workshop"],
+    khalil:["Rigmove"], anwin:["Rental"],
   })) {
     for (const location of locations) await pool.query(
       "insert into logistics_approver_locations(profile_id,location) values($1,$2)",[ids[name],location],
@@ -151,6 +155,43 @@ async function test(name,fn) {
   console.log("PASS: "+name);
 }
 try {
+  await test("Four new locations use live assignments, single-site recipients, and no Noorah broadcast",async()=>{
+    for (const [location,name] of [
+      ["Central Workshop","ashwin"],["RMD Salasil Workshop","ninju"],
+      ["Rigmove","khalil"],["Rental","anwin"],
+    ]) {
+      // Each site is an independent scenario. Reusing this employee for several
+      // requests would correctly hit the real daily submission cooldown.
+      await reset();
+      attempts.length=0;
+      const id=await submit(location);
+      assert.deepEqual(attempts.map(m=>m.to),[name+"@example.invalid"]);
+      const recipients=(await pool.query(
+        "select user_id from notifications where authorization_id=$1",[id])).rows;
+      assert.deepEqual(recipients.map(r=>r.user_id),[ids[name]]);
+      attempts.length=0;
+      actor=ids[name];
+      assert.equal((await approvals.approveAuthorization({id})).ok,true);
+      assert.deepEqual(attempts.map(m=>m.to),["admin@example.invalid"]);
+      assert.equal((await pool.query("select approval_stage from authorizations where id=$1",[id])).rows[0].approval_stage,2);
+    }
+    // Runtime reassignment, without changing the roster or mailer, changes routing.
+    await reset();
+    await pool.query("update logistics_approver_locations set profile_id=$1 where location=$2",
+      [ids.waqar,"Central Workshop"]);
+    attempts.length=0;
+    await submit("Central Workshop");
+    assert.deepEqual(attempts.map(m=>m.to),["waqar@example.invalid"]);
+  });
+  await test("Independent site fixtures do not weaken the real employee submission cooldown",async()=>{
+    await submit("Central Workshop");
+    const before=(await pool.query("select count(*)::int n from authorizations")).rows[0].n;
+    const second=await actions.submitPublicRequest(input("Rental"));
+    assert.equal(second.ok,false);
+    assert.match(second.error,/next request is available/i);
+    assert.equal((await pool.query("select count(*)::int n from authorizations")).rows[0].n,before);
+    assert.deepEqual(attempts.map(m=>m.to),["ashwin@example.invalid"]);
+  });
   await test("Dhahran selects exactly assigned active Logistics recipients; business content and protected links",async()=>{
     const id=await submit();
     assert.deepEqual(attempts.map(m=>m.to).sort(),["ejaz@example.invalid","noorah@example.invalid","waqar@example.invalid"]);

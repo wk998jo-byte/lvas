@@ -10,6 +10,10 @@ export const PROJECT_LOCATIONS = [
   "Rastanura",
   "Yanbu",
   "Zuluf",
+  "Central Workshop",
+  "RMD Salasil Workshop",
+  "Rigmove",
+  "Rental",
 ] as const;
 
 export type ProjectLocation = (typeof PROJECT_LOCATIONS)[number];

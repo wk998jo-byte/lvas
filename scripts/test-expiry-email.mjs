@@ -18,6 +18,7 @@ assert.equal((await pool.query("select current_setting('data_directory') as dir"
   "/tmp/lvas-approval-email-pg", "Only the dedicated disposable cluster is permitted");
 const schema = readFileSync(path.join(root, "db/schema.sql"), "utf8");
 const ids = Object.fromEntries(["ejaz","waqar","noorah","jafurah","unassigned","inactive","empty","invalid",
+  "ashwin","ninju","khalil","anwin",
   "admin","otherAdmin"].map(name => [name, randomUUID()]));
 const env = {
   NODE_ENV: "production", APP_URL: "https://lvas.example.invalid",
@@ -85,6 +86,7 @@ const events = load("lib/notifications/expiry-email.ts");
 const queries = load("lib/db/queries.ts");
 const cron = load("app/api/cron/expiry-alarms/route.ts");
 const locations = load("lib/approvals/logistics-team.ts").PROJECT_LOCATIONS;
+const originalLocations = locations.slice(0,9);
 const now = () => new Date(clock);
 const run = () => job.runExpiryAlarms(now());
 async function reset() {
@@ -96,8 +98,10 @@ async function reset() {
         ["admin","otherAdmin"].includes(name)?"admin":"logistics_approver",name!=="inactive"]);
   }
   for (const [name,scope] of Object.entries({
-    ejaz:["Dhahran Base"],waqar:["Dhahran Base"],noorah:locations,jafurah:["Jafurah"],
+    ejaz:["Dhahran Base"],waqar:["Dhahran Base"],noorah:originalLocations,jafurah:["Jafurah"],
     inactive:["Dhahran Base"],empty:["Facility"],invalid:["Facility"],
+    ashwin:["Central Workshop"],ninju:["RMD Salasil Workshop"],
+    khalil:["Rigmove"],anwin:["Rental"],
   })) {
     for (const location of scope) await pool.query(
       "insert into logistics_approver_locations(profile_id,location) values($1,$2)",[ids[name],location]);
@@ -133,6 +137,22 @@ const expectedDhahran = ["ejaz@example.invalid","noorah@example.invalid","waqar@
 let passed=0;
 async function test(name,fn) { await reset(); await fn(); passed++; console.log("PASS: "+name); }
 try {
+  await test("Four new locations route both expiry stages only to their live single-site approver",async()=>{
+    for (const [location,name] of [
+      ["Central Workshop","ashwin"],["RMD Salasil Workshop","ninju"],
+      ["Rigmove","khalil"],["Rental","anwin"],
+    ]) {
+      for (const days of [3,0]) {
+        const a=await authorization({location,days});
+        await run();
+        const sent=attempts.filter(m=>m.text.includes("/history/"+a.id));
+        assert.deepEqual(sent.map(m=>m.to),[name+"@example.invalid"]);
+        const assignedAlerts=(await notifications(a.id)).filter(r=>r.type==="expiry_warning");
+        assert(assignedAlerts.some(r=>r.user_id===ids[name]));
+        assert(!assignedAlerts.some(r=>r.user_id===ids.noorah));
+      }
+    }
+  });
   await test("Exactly 3 Saudi days: dynamic assigned Logistics, business content and protected URL",async()=>{
     const a=await authorization(); const result=await run();
     assert.equal(result.emailsAttempted,3); assert.equal(result.created,4); assert.equal(result.expiredMarked,0);
@@ -164,8 +184,8 @@ try {
     await authorization({location:"Jafurah"}); await run();
     assert.deepEqual(emailRecipients(),["jafurah@example.invalid","noorah@example.invalid"]);
   });
-  await test("Noorah's all-site assignment works dynamically at all nine current locations",async()=>{
-    for(const location of locations) await authorization({location});
+  await test("Noorah retains exactly the original nine locations, never the four additions",async()=>{
+    for(const location of originalLocations) await authorization({location});
     await run();
     assert.equal(attempts.filter(m=>m.to==="noorah@example.invalid").length,9);
   });

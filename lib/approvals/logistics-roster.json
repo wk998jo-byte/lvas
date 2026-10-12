@@ -77,6 +77,34 @@
     "locations": ["Zuluf"]
   },
   {
+    "fullName": "Ashwin Suresh Kumar",
+    "email": "aswin.kumar@binquraya.com",
+    "badge": "8974",
+    "position": "Assistant Workshop Manager",
+    "locations": ["Central Workshop"]
+  },
+  {
+    "fullName": "Ninju Moochikkal",
+    "email": "ninju.moochikkal@binquraya.com",
+    "badge": "8701",
+    "position": "Workshop Manager Rig Move",
+    "locations": ["RMD Salasil Workshop"]
+  },
+  {
+    "fullName": "Khalil Jabran",
+    "email": "jabran.khalil@binquraya.com",
+    "badge": "11124",
+    "position": "Rig Move Operation Manager",
+    "locations": ["Rigmove"]
+  },
+  {
+    "fullName": "Anwin Sirajin Arifin",
+    "email": "anwin.arifin@binquraya.com",
+    "badge": "1685",
+    "position": "Commercial Operations Manager",
+    "locations": ["Rental"]
+  },
+  {
     "fullName": "Noorah",
     "email": "noorah.alshamsi@binquraya.com",
     "badge": "",
