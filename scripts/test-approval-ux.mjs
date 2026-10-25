@@ -239,7 +239,7 @@ try {
     assert.equal(result.ok, true);
     assert.equal(result.data.status, "rejected");
     assert.equal(result.data.approval_stage, stage);
-    assert.equal(result.data.approver_id, stage === 1 ? logId : adminId);
+    assert.equal(result.data.approver_id, adminId);
     assert.ok(result.data.rejected_at);
     const detail = await staffDetail(rejectId);
     const label = stage === 1 ? "Rejected by Logistics" : "Rejected by Final Approver";

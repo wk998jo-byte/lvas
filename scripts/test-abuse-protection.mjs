@@ -73,6 +73,12 @@ const queryStubs = {
   },
   insertAuthorization: async () => { throw new Error("Business mutation prohibited in this test"); },
   getLastLimitRequestAt: async () => null,
+  getEligibleFinalApproverIdForLocation: async () => {
+    throw new Error("Stop after verified identity");
+  },
+  listLogisticsApproverIdsForLocation: async () => {
+    throw new Error("Stop after verified identity");
+  },
 };
 const modules = new Map();
 function load(file) {

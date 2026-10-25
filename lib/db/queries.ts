@@ -92,6 +92,60 @@ function authorizationLocationClause(
   return ` and ${alias ? `${alias}.` : ""}location = any($${params.length}::text[])`;
 }
 
+function authorizationApproverClause(
+  approverId: string | undefined,
+  params: unknown[],
+  alias = "a",
+): string {
+  if (!approverId) return "";
+  params.push(approverId);
+  return ` and ${alias ? `${alias}.` : ""}approver_id = $${params.length}`;
+}
+
+function authorizationVisibilityClause(
+  locations: readonly string[] | undefined,
+  params: unknown[],
+  alias = "a",
+  approverId?: string,
+): string {
+  return (
+    authorizationLocationClause(locations, params, alias) +
+    authorizationApproverClause(approverId, params, alias)
+  );
+}
+
+export async function getEligibleFinalApproverIdForLocation(
+  location: string,
+): Promise<string | null> {
+  const row = await queryOne<{ id: string }>(
+    `
+      select p.id
+      from final_approver_locations m
+      join profiles p on p.id = m.profile_id
+      where m.location = $1
+        and p.role = 'admin'
+        and p.is_active = true
+    `,
+    [location],
+  );
+  return row?.id ?? null;
+}
+
+export async function getEligibleFinalApproverById(
+  profileId: string,
+): Promise<{ id: string; email: string } | null> {
+  return queryOne<{ id: string; email: string }>(
+    `
+      select id, email
+      from profiles
+      where id = $1
+        and role = 'admin'
+        and is_active = true
+    `,
+    [profileId],
+  );
+}
+
 export async function listActiveVehicles(): Promise<VehicleOption[]> {
   return query<VehicleOption>(
     `
@@ -483,6 +537,7 @@ export async function findApprovedOverlappingAuthorization(input: {
   endDate: string;
   excludeId?: string;
   locations?: readonly string[];
+  approverId?: string;
 }): Promise<ApprovedOverlapRow | null> {
   const params: unknown[] = [
     input.vehicleId,
@@ -494,7 +549,12 @@ export async function findApprovedOverlappingAuthorization(input: {
     params.push(input.excludeId);
     excludeSql = `and a.id <> $${params.length}`;
   }
-  const locationSql = authorizationLocationClause(input.locations, params);
+  const locationSql = authorizationVisibilityClause(
+    input.locations,
+    params,
+    "a",
+    input.approverId,
+  );
 
   return queryOne(
     `
@@ -521,15 +581,23 @@ export async function findApprovedOverlappingAuthorization(input: {
 export async function listApprovedOverlapsForPending(
   pendingIds: string[],
   locations?: readonly string[],
+  approverId?: string,
 ): Promise<Map<string, VisibleAuthorizationConflict>> {
   const conflicts = new Map<string, VisibleAuthorizationConflict>();
   if (pendingIds.length === 0) return conflicts;
 
-  const rows = await query<ApprovedOverlapRow & { pending_id: string; location: string | null }>(
+  const rows = await query<
+    ApprovedOverlapRow & {
+      pending_id: string;
+      location: string | null;
+      approver_id: string | null;
+    }
+  >(
     `
       select distinct on (p.id)
         p.id as pending_id,
         a.location,
+        a.approver_id,
         a.id,
         coalesce(nullif(e.full_name, ''), 'an employee') as authorized_to,
         a.start_date::text as start_date,
@@ -549,9 +617,13 @@ export async function listApprovedOverlapsForPending(
   );
 
   for (const row of rows) {
-    if (locations !== undefined && (row.location === null || !locations.includes(row.location))) {
+    const hiddenByLocation =
+      locations !== undefined &&
+      (row.location === null || !locations.includes(row.location));
+    const hiddenByApprover = Boolean(approverId) && row.approver_id !== approverId;
+    if (hiddenByLocation || hiddenByApprover) {
       // Preserve the vehicle-unavailable signal, but never send another
-      // location's request ID, employee name or dates to a logistics client.
+      // scope's request ID, employee name or dates to the client.
       conflicts.set(row.pending_id, { restricted: true });
       continue;
     }
@@ -785,9 +857,10 @@ export async function getExpiryEmailContext(input: {
 export async function getAuthorizationDetail(
   id: string,
   locations?: readonly string[],
+  approverId?: string,
 ): Promise<AuthorizationDetailRow | null> {
   const params: unknown[] = [id];
-  const locationSql = authorizationLocationClause(locations, params);
+  const locationSql = authorizationVisibilityClause(locations, params, "a", approverId);
   return queryOne<AuthorizationDetailRow>(
     `
       select
@@ -865,7 +938,7 @@ export async function getAuthorizationByPublicToken(token: string) {
 
 export async function listPendingAuthorizations(
   limit = 200,
-  filter?: { stage: number; locations?: string[] },
+  filter?: { stage: number; locations?: string[]; approverId?: string },
 ): Promise<AuthorizationListRow[]> {
   const params: unknown[] = [limit];
   const clauses = ["a.status = 'pending'"];
@@ -875,6 +948,10 @@ export async function listPendingAuthorizations(
     if (filter.locations) {
       params.push(filter.locations);
       clauses.push(`a.location = any($${params.length}::text[])`);
+    }
+    if (filter.approverId) {
+      params.push(filter.approverId);
+      clauses.push(`a.approver_id = $${params.length}`);
     }
   }
   const rows = await query<AuthorizationListRow>(
@@ -890,7 +967,11 @@ export async function listPendingAuthorizations(
     `,
     params,
   );
-  const conflicts = await listApprovedOverlapsForPending(rows.map((row) => row.id), filter?.locations);
+  const conflicts = await listApprovedOverlapsForPending(
+    rows.map((row) => row.id),
+    filter?.locations,
+    filter?.approverId,
+  );
   return rows.map((row) => ({
     ...row,
     activeConflict: conflicts.get(row.id) ?? null,
@@ -925,9 +1006,10 @@ export async function listLogisticsWaitingForFinalApproval(
 export async function listHistoryAuthorizations(
   limit = 300,
   locations?: readonly string[],
+  approverId?: string,
 ): Promise<AuthorizationListRow[]> {
   const params: unknown[] = [limit];
-  const locationSql = authorizationLocationClause(locations, params);
+  const locationSql = authorizationVisibilityClause(locations, params, "a", approverId);
   return query<AuthorizationListRow>(
     `
       select ${AUTHORIZATION_LIST_SELECT}
@@ -949,9 +1031,15 @@ export async function listExpiringAuthorizations(input: {
   in7Days: string;
   limit?: number;
   locations?: readonly string[];
+  approverId?: string;
 }) {
   const params: unknown[] = [input.today, input.in7Days, input.limit ?? 6];
-  const locationSql = authorizationLocationClause(input.locations, params);
+  const locationSql = authorizationVisibilityClause(
+    input.locations,
+    params,
+    "a",
+    input.approverId,
+  );
   return query<{
     id: string;
     end_date: string;
@@ -976,9 +1064,14 @@ export async function listExpiringAuthorizations(input: {
   );
 }
 
-export async function listInsightAuthorizations(sinceIso: string, limit = 500, locations?: readonly string[]) {
+export async function listInsightAuthorizations(
+  sinceIso: string,
+  limit = 500,
+  locations?: readonly string[],
+  approverId?: string,
+) {
   const params: unknown[] = [sinceIso, limit];
-  const locationSql = authorizationLocationClause(locations, params);
+  const locationSql = authorizationVisibilityClause(locations, params, "a", approverId);
   return query<{
     status: AuthorizationStatus;
     created_at: string;
@@ -1006,9 +1099,10 @@ export async function listInsightAuthorizations(sinceIso: string, limit = 500, l
 export async function countAuthorizationsByStatus(
   status: AuthorizationStatus,
   locations?: readonly string[],
+  approverId?: string,
 ): Promise<number> {
   const params: unknown[] = [status];
-  const locationSql = authorizationLocationClause(locations, params, "");
+  const locationSql = authorizationVisibilityClause(locations, params, "", approverId);
   const row = await queryOne<{ count: string }>(
     `select count(*)::text as count from authorizations where status = $1${locationSql}`,
     params,
@@ -1016,19 +1110,27 @@ export async function countAuthorizationsByStatus(
   return Number(row?.count ?? 0);
 }
 
-export async function countPendingAuthorizations(locations?: readonly string[]): Promise<number> {
-  return countAuthorizationsByStatus("pending", locations);
+export async function countPendingAuthorizations(
+  locations?: readonly string[],
+  approverId?: string,
+): Promise<number> {
+  return countAuthorizationsByStatus("pending", locations, approverId);
 }
 
 export async function countPendingForReview(input: {
   stage: number;
   locations?: string[];
+  approverId?: string;
 }): Promise<number> {
   const params: unknown[] = [input.stage];
   const clauses = ["status = 'pending'", "approval_stage = $1"];
   if (input.locations) {
     params.push(input.locations);
     clauses.push(`location = any($${params.length}::text[])`);
+  }
+  if (input.approverId) {
+    params.push(input.approverId);
+    clauses.push(`approver_id = $${params.length}`);
   }
   const row = await queryOne<{ count: string }>(
     `select count(*)::text as count from authorizations where ${clauses.join(" and ")}`,
@@ -1094,9 +1196,13 @@ export async function advanceToFinalApproval(input: {
   );
 }
 
-export async function countApprovedActive(today: string, locations?: readonly string[]): Promise<number> {
+export async function countApprovedActive(
+  today: string,
+  locations?: readonly string[],
+  approverId?: string,
+): Promise<number> {
   const params: unknown[] = [today];
-  const locationSql = authorizationLocationClause(locations, params, "");
+  const locationSql = authorizationVisibilityClause(locations, params, "", approverId);
   const row = await queryOne<{ count: string }>(
     `
       select count(*)::text as count
@@ -1113,9 +1219,10 @@ export async function countExpiringWithin(
   today: string,
   in7Days: string,
   locations?: readonly string[],
+  approverId?: string,
 ): Promise<number> {
   const params: unknown[] = [today, in7Days];
-  const locationSql = authorizationLocationClause(locations, params, "");
+  const locationSql = authorizationVisibilityClause(locations, params, "", approverId);
   const row = await queryOne<{ count: string }>(
     `
       select count(*)::text as count
@@ -1150,7 +1257,7 @@ export async function approvePendingAuthorization(input: {
           rejected_at = null,
           rejection_reason = null,
           approver_id = $2
-      where id = $1 and status = 'pending' and approval_stage = 2
+      where id = $1 and status = 'pending' and approval_stage = 2 and approver_id = $2
       returning
         id, vehicle_id, requester_id, employee_id, public_token, contact_mobile,
         approver_id, status, start_date::text as start_date, end_date::text as end_date,
@@ -1164,12 +1271,13 @@ export async function approvePendingAuthorization(input: {
 
 export async function cancelApprovedAuthorization(
   id: string,
+  approverId: string,
 ): Promise<Authorization | null> {
   return queryOne<Authorization>(
     `
       update authorizations
       set status = 'cancelled'
-      where id = $1 and status = 'approved'
+      where id = $1 and status = 'approved' and approver_id = $2
       returning
         id, vehicle_id, requester_id, employee_id, public_token, contact_mobile,
         approver_id, status, start_date::text as start_date, end_date::text as end_date,
@@ -1177,7 +1285,7 @@ export async function cancelApprovedAuthorization(
         location, justification, approval_stage, first_approver_id, first_approved_at,
         approved_at, rejected_at, created_at, updated_at
     `,
-    [id],
+    [id, approverId],
   );
 }
 
@@ -1194,9 +1302,11 @@ export async function rejectPendingAuthorization(input: {
       set status = 'rejected',
           rejected_at = $3,
           approved_at = null,
-          rejection_reason = $4,
-          approver_id = $2
-      where id = $1 and status = 'pending' and approval_stage = $5
+          rejection_reason = $4
+      where id = $1
+        and status = 'pending'
+        and approval_stage = $5
+        and ($5 = 1 or approver_id = $2)
       returning
         id, vehicle_id, requester_id, employee_id, public_token, contact_mobile,
         approver_id, status, start_date::text as start_date, end_date::text as end_date,

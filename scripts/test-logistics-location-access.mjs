@@ -18,11 +18,14 @@ const newLocations = ["Central Workshop", "RMD Salasil Workshop", "Rigmove", "Re
 const locations = [...originalLocations, ...newLocations];
 const retiredFabshop = ["Fabshop", "Salasil"].join("-");
 const retiredDepartment = ["Dhahran Base", "Asset Department"].join("-");
+const mutebId = "synthetic-profile";
+const abdullahId = "abdullah-admin";
 const rows = locations.map((location, index) => ({
   id: `request-${index}`, location, status: "approved", approval_stage: 2,
   vehicle_id: location, start_date: "2026-10-06", end_date: "2026-10-12",
   created_at: "2026-10-06", vehicles: { plate_number: location },
   authorized_to: `Employee ${location}`,
+  approver_id: ["Rigmove", "Rental"].includes(location) ? abdullahId : mutebId,
 }));
 rows.push({ ...rows[0], id: "legacy-null", location: null, vehicle_id: "legacy" });
 rows.push({ ...rows[0], id: "legacy-fabshop", location: retiredFabshop, vehicle_id: "legacy-fabshop" });
@@ -55,6 +58,10 @@ function select(text, params = []) {
     const allowed = params[Number(locationMatch[1]) - 1];
     assert.ok(Array.isArray(allowed), "locations must be bound as an array");
     result = result.filter((row) => row.location !== null && allowed.includes(row.location));
+  }
+  const approverMatch = text.match(/(?:a\.)?approver_id = \$(\d+)/);
+  if (approverMatch) {
+    result = result.filter((row) => row.approver_id === params[Number(approverMatch[1]) - 1]);
   }
   if (/where a\.id = \$1/.test(text)) result = result.filter((row) => row.id === params[0]);
   if (/where a\.vehicle_id = \$1/.test(text)) result = result.filter((row) => row.vehicle_id === params[0]);
@@ -104,7 +111,12 @@ function load(file) {
     if (name === "@/lib/auth/guards") return {
       requireRole: async (allowed) => {
         assert.deepEqual(Array.from(allowed), ["admin", "logistics_approver"]);
-        return { id: "synthetic-profile", role, full_name: "Test", email: "test@example.invalid" };
+        return {
+          id: role === "admin" ? mutebId : "synthetic-logistics",
+          role,
+          full_name: "Test",
+          email: "test@example.invalid",
+        };
       },
     };
     if (name === "@/lib/authorizations/effective-status") return { isEffectivelyApproved: (status) => status === "approved" };
@@ -210,8 +222,12 @@ assigned = [];
 assert.equal(find(await history(), "ApprovalsTable").props.requests.length, 0);
 await assert.rejects(detail({ params: Promise.resolve({ id: jafurahRow.id }) }), (error) => error.code === 404);
 role = "admin";
-assert.equal(find(await history(), "ApprovalsTable").props.requests.length, locations.length + 2);
+const mutebHistory = rows.filter((row) =>
+  row.status === "approved" && row.approver_id === mutebId);
+assert.equal(find(await history(), "ApprovalsTable").props.requests.length, mutebHistory.length);
 assert.equal((await detail({ params: Promise.resolve({ id: "legacy-null" }) })).props.request.id, "legacy-null");
+const rigmoveRow = rows.find((row) => row.location === "Rigmove");
+await assert.rejects(detail({ params: Promise.resolve({ id: rigmoveRow.id }) }), (error) => error.code === 404);
 
 // Stage-1 routing stays intact, without leaking cross-location overlap data.
 role = "logistics_approver";
@@ -232,7 +248,11 @@ assert.ok(dashboardCalls.every(({ text }) => /location = any/.test(text) || /fro
 role = "admin";
 const adminStart = calls.length;
 await dashboard();
-assert.ok(calls.slice(adminStart).filter(({ text }) => /from authorizations/.test(text)).every(({ text }) => !/location = any/.test(text)));
+const adminAuthCalls = calls.slice(adminStart).filter(({ text }) => /from authorizations/.test(text));
+assert.ok(adminAuthCalls.length > 0);
+assert.ok(adminAuthCalls.every(({ text }) =>
+  /approver_id =/.test(text) || /from authorizations p/.test(text)));
+assert.ok(adminAuthCalls.every(({ text }) => !/location = any/.test(text)));
 
 // Raw database errors are not included in the touched page responses.
 failDatabase = true;

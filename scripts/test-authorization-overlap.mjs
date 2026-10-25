@@ -63,6 +63,8 @@ assert.doesNotMatch(
   /findOverlappingAuthorization/,
   "public submit must not block on overlap",
 );
+assert.match(publicAction, /getEligibleFinalApproverIdForLocation/);
+assert.doesNotMatch(publicAction, /getDefaultApproverId/);
 
 const approveAction = readFileSync(
   path.join(root, "actions/approvals.ts"),

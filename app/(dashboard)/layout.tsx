@@ -19,7 +19,7 @@ export default async function DashboardLayout({
           stage: 1,
           locations: await listLocationsForApprover(profile.id),
         })
-      : await countPendingForReview({ stage: 2 });
+      : await countPendingForReview({ stage: 2, approverId: profile.id });
 
   return (
     <AppShell profile={profile} pendingCount={pendingCount}>

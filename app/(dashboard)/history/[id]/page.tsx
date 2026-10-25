@@ -28,7 +28,8 @@ export default async function RequestDetailPage({
     const locations = profile.role === "logistics_approver"
       ? await listLocationsForApprover(profile.id)
       : undefined;
-    request = await getAuthorizationDetail(id, locations);
+    const approverId = profile.role === "admin" ? profile.id : undefined;
+    request = await getAuthorizationDetail(id, locations, approverId);
     if (request?.status === "pending") {
       const overlapInput = {
         vehicleId: request.vehicle_id,
@@ -37,10 +38,14 @@ export default async function RequestDetailPage({
         excludeId: request.id,
       };
       const overlap = await findApprovedOverlappingAuthorization(overlapInput);
-      // A global availability signal is safe; another location's identity,
+      // A global availability signal is safe; another scope's identity,
       // dates and request ID are not.
-      conflict = overlap && locations !== undefined
-        ? await findApprovedOverlappingAuthorization({ ...overlapInput, locations })
+      conflict = overlap && (locations !== undefined || approverId)
+        ? await findApprovedOverlappingAuthorization({
+            ...overlapInput,
+            locations,
+            approverId,
+          })
           ?? { restricted: true as const }
         : overlap;
     }
@@ -65,7 +70,7 @@ export default async function RequestDetailPage({
       title="Authorization details"
       viewerRole={profile.role}
       actions={
-        canReviewApproval(profile.role, request) ? (
+        canReviewApproval(profile.role, request, profile.id) ? (
           <ApprovalActions
             authorizationId={request.id}
             conflict={conflict}

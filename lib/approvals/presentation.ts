@@ -1,11 +1,24 @@
 import type { AuthorizationStatus, UserRole } from "@/types/database";
 
-type ApprovalState = { status: AuthorizationStatus; approval_stage: number };
+type ApprovalState = {
+  status: AuthorizationStatus;
+  approval_stage: number;
+  approver_id?: string | null;
+};
 
-export function canReviewApproval(role: UserRole, request: ApprovalState): boolean {
-  return request.status === "pending" &&
-    ((role === "logistics_approver" && request.approval_stage === 1) ||
-      (role === "admin" && request.approval_stage === 2));
+export function canReviewApproval(
+  role: UserRole,
+  request: ApprovalState,
+  viewerId?: string,
+): boolean {
+  if (request.status !== "pending") return false;
+  if (role === "logistics_approver" && request.approval_stage === 1) return true;
+  return (
+    role === "admin" &&
+    request.approval_stage === 2 &&
+    Boolean(viewerId) &&
+    request.approver_id === viewerId
+  );
 }
 
 export function approvalStatusLabel(request: ApprovalState): string {

@@ -13,14 +13,17 @@ export type DashboardKpis = {
   fleetVehicles: number;
 };
 
-export async function getDashboardKpis(locations?: readonly string[]): Promise<DashboardKpis> {
+export async function getDashboardKpis(
+  locations?: readonly string[],
+  approverId?: string,
+): Promise<DashboardKpis> {
   const today = saudiTodayIsoDate();
   const in7Days = addCalendarDays(today, 7);
 
   const [active, pending, expiring, fleet] = await Promise.all([
-    countApprovedActive(today, locations),
-    countPendingAuthorizations(locations),
-    countExpiringWithin(today, in7Days, locations),
+    countApprovedActive(today, locations, approverId),
+    countPendingAuthorizations(locations, approverId),
+    countExpiringWithin(today, in7Days, locations, approverId),
     countActiveVehicles(),
   ]);
 

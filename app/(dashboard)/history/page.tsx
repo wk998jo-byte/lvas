@@ -15,7 +15,11 @@ export default async function RequestsHistoryPage() {
     const locations = profile.role === "logistics_approver"
       ? await listLocationsForApprover(profile.id)
       : undefined;
-    requests = await listHistoryAuthorizations(300, locations);
+    requests = await listHistoryAuthorizations(
+      300,
+      locations,
+      profile.role === "admin" ? profile.id : undefined,
+    );
   } catch {
     return (
       <div className="space-y-2">

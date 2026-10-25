@@ -3,16 +3,20 @@
 import { revalidatePath } from "next/cache";
 
 import { fail, ok, type ActionResult } from "@/lib/actions";
+import {
+  FINAL_APPROVER_FORBIDDEN,
+  FINAL_APPROVER_REQUEST_CONFIG_ERROR,
+} from "@/lib/approvals/final-approvers";
 import { requireRole } from "@/lib/auth/guards";
 import { activeAuthorizationError } from "@/lib/authorizations/overlap";
 import { isOverlapViolation, pgErrorMessage } from "@/lib/db/pool";
-import { getDefaultApproverId } from "@/lib/auth/approver";
 import {
   advanceToFinalApproval,
   approvePendingAuthorization,
   cancelApprovedAuthorization,
   findApprovedOverlappingAuthorization,
   getAuthorizationById,
+  getEligibleFinalApproverById,
   getVehicleById,
   insertNotification,
   listLocationsForApprover,
@@ -89,6 +93,13 @@ export async function approveAuthorization(
       if (!current.location || !locations.includes(current.location)) {
         return fail("This request is outside your project locations.");
       }
+      if (!current.approver_id) {
+        return fail(FINAL_APPROVER_REQUEST_CONFIG_ERROR);
+      }
+      const finalApprover = await getEligibleFinalApproverById(current.approver_id);
+      if (!finalApprover) {
+        return fail(FINAL_APPROVER_REQUEST_CONFIG_ERROR);
+      }
 
       const data = await advanceToFinalApproval({
         id: current.id,
@@ -99,17 +110,13 @@ export async function approveAuthorization(
 
       await notifyAfterDecision(async () => {
         const plate = await vehicleLabel(data.vehicle_id);
-        const finalApproverId =
-          data.approver_id ?? (await getDefaultApproverId());
-        if (finalApproverId) {
-          await notifyApprovalEvent({
-            authorizationId: data.id,
-            event: "ready_for_final_approval",
-            recipientIds: [finalApproverId],
-            title: "Request ready for final approval",
-            body: `${plate} (${data.start_date} → ${data.end_date}) at ${data.location ?? "the project"} was approved by logistics and is waiting for final approval.`,
-          });
-        }
+        await notifyApprovalEvent({
+          authorizationId: data.id,
+          event: "ready_for_final_approval",
+          recipientIds: [finalApprover.id],
+          title: "Request ready for final approval",
+          body: `${plate} (${data.start_date} → ${data.end_date}) at ${data.location ?? "the project"} was approved by logistics and is waiting for final approval.`,
+        });
       });
 
       revalidateApprovalPaths(data.id);
@@ -118,6 +125,9 @@ export async function approveAuthorization(
 
     if (current.approval_stage !== 2) {
       return fail("Logistics approval is still required.");
+    }
+    if (current.approver_id !== profile.id) {
+      return fail(FINAL_APPROVER_FORBIDDEN);
     }
 
     const conflict = await findApprovedOverlappingAuthorization({
@@ -185,6 +195,8 @@ export async function rejectAuthorization(
       }
     } else if (current.approval_stage !== 2) {
       return fail("Logistics approval is still required.");
+    } else if (current.approver_id !== profile.id) {
+      return fail(FINAL_APPROVER_FORBIDDEN);
     }
 
     const data = await rejectPendingAuthorization({
@@ -217,14 +229,22 @@ export async function rejectAuthorization(
 export async function endAuthorization(
   input: unknown,
 ): Promise<ActionResult<Authorization>> {
-  await requireRole("admin");
+  const profile = await requireRole("admin");
   const parsed = authorizationIdSchema.safeParse(input);
   if (!parsed.success) {
     return fail(parsed.error.issues[0]?.message ?? "Invalid authorization id");
   }
 
   try {
-    const data = await cancelApprovedAuthorization(parsed.data.id);
+    const current = await getAuthorizationById(parsed.data.id);
+    if (!current || current.status !== "approved") {
+      return fail("Only an approved authorization can be ended.");
+    }
+    if (current.approver_id !== profile.id) {
+      return fail(FINAL_APPROVER_FORBIDDEN);
+    }
+
+    const data = await cancelApprovedAuthorization(parsed.data.id, profile.id);
     if (!data) {
       return fail("Only an approved authorization can be ended.");
     }

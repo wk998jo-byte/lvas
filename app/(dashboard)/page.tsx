@@ -77,9 +77,10 @@ export default async function DashboardHomePage() {
   const locations = isLogistics
     ? await listLocationsForApprover(profile.id)
     : undefined;
+  const adminId = isLogistics ? undefined : profile.id;
   const reviewFilter = isLogistics
     ? { stage: 1, locations: locations ?? [] }
-    : { stage: 2 };
+    : { stage: 2, approverId: profile.id };
 
   const today = saudiTodayIsoDate();
   const in7Days = addCalendarDays(today, 7);
@@ -97,18 +98,18 @@ export default async function DashboardHomePage() {
     cancelledCount,
     expiredCount,
   ] = await Promise.all([
-    getDashboardKpis(locations),
+    getDashboardKpis(locations, adminId),
     listPendingAuthorizations(200, reviewFilter),
     isLogistics
       ? listLogisticsWaitingForFinalApproval(locations ?? [], 200)
       : Promise.resolve([]),
-    listExpiringAuthorizations({ today, in7Days, limit: 6, locations }),
-    listInsightAuthorizations(`${since90Days}T00:00:00.000Z`, 500, locations),
-    countAuthorizationsByStatus("pending", locations),
-    countAuthorizationsByStatus("approved", locations),
-    countAuthorizationsByStatus("rejected", locations),
-    countAuthorizationsByStatus("cancelled", locations),
-    countAuthorizationsByStatus("expired", locations),
+    listExpiringAuthorizations({ today, in7Days, limit: 6, locations, approverId: adminId }),
+    listInsightAuthorizations(`${since90Days}T00:00:00.000Z`, 500, locations, adminId),
+    countAuthorizationsByStatus("pending", locations, adminId),
+    countAuthorizationsByStatus("approved", locations, adminId),
+    countAuthorizationsByStatus("rejected", locations, adminId),
+    countAuthorizationsByStatus("cancelled", locations, adminId),
+    countAuthorizationsByStatus("expired", locations, adminId),
   ]);
 
   const breakdown: BreakdownItem[] = [
@@ -329,7 +330,11 @@ export default async function DashboardHomePage() {
 
         <SectionCard
           title="Status breakdown"
-          description="All authorizations in the system"
+          description={
+            isLogistics
+              ? "Authorizations at your assigned locations"
+              : "Authorizations assigned to you"
+          }
         >
           <StatusBreakdown items={breakdown} />
         </SectionCard>

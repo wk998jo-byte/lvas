@@ -93,6 +93,7 @@ try {
       [id, `${id}@example.invalid`, id === logistics ? "logistics_approver" : "admin"]);
   }
   await client.query("insert into logistics_approver_locations(profile_id,location) values($1,'Jafurah')", [logistics]);
+  await client.query("insert into final_approver_locations(location,profile_id) values('Jafurah',$1)", [admin]);
   for (const r of snapshot) {
     await client.query(`insert into vehicles(id,door_number,plate_number,make,model,year,color,is_active,notes,created_by,created_at,updated_at)
       values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,

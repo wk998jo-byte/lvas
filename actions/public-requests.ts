@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { fail, ok, type ActionResult } from "@/lib/actions";
-import { getDefaultApproverId } from "@/lib/auth/approver";
+import { FINAL_APPROVER_CONFIG_ERROR } from "@/lib/approvals/final-approvers";
 import {
   addDays,
   cooldownMessage,
@@ -19,6 +19,7 @@ import {
   isOverlapViolation,
 } from "@/lib/db/pool";
 import {
+  getEligibleFinalApproverIdForLocation,
   getEmployeeByBadge,
   getEmployeeForVerify,
   getLastLimitRequestAt,
@@ -139,15 +140,13 @@ export async function submitPublicRequest(
   let approverId: string | null;
   let logisticsApproverIds: string[];
   try {
-    approverId = await getDefaultApproverId();
+    approverId = await getEligibleFinalApproverIdForLocation(parsed.data.location);
     logisticsApproverIds = await listLogisticsApproverIdsForLocation(parsed.data.location);
   } catch {
     return fail(SAFE_REQUEST_ERROR);
   }
   if (!approverId) {
-    return fail(
-      "No approver is configured yet. Contact the fleet administrator.",
-    );
+    return fail(FINAL_APPROVER_CONFIG_ERROR);
   }
 
   if (logisticsApproverIds.length === 0) {

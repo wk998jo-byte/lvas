@@ -21,7 +21,7 @@ assert.equal(identity.dir, "/tmp/lvas-approval-email-pg", "Only this disposable 
 const schema = readFileSync(path.join(root, "db/schema.sql"), "utf8");
 const ids = Object.fromEntries(["ejaz","noorah","waqar","jafurah","inactive","empty","invalid",
   "ashwin","ninju","khalil","anwin",
-  "admin","otherAdmin","employee","vehicle"].map(k => [k, randomUUID()]));
+  "admin","otherAdmin","abdullah","employee","vehicle"].map(k => [k, randomUUID()]));
 const fixtureEnv = {
   NODE_ENV: "production", APP_URL: "https://lvas.example.invalid",
   SMTP_HOST: "smtp.example.invalid", SMTP_FROM: "LVAS <sender@example.invalid>",
@@ -96,12 +96,12 @@ async function reset() {
   await pool.query("drop schema public cascade; create schema public");
   await pool.query(schema);
   for (const name of ["ejaz","noorah","waqar","jafurah","inactive","empty","invalid","admin","otherAdmin",
-    "ashwin","ninju","khalil","anwin"]) {
+    "abdullah","ashwin","ninju","khalil","anwin"]) {
     await pool.query(`insert into profiles(id,full_name,email,role,is_active)
       values($1,$2,$3,$4,$5)`,[
       ids[name],"Synthetic "+name,
       name==="empty" ? "" : name==="invalid" ? "not-an-email" : name+"@example.invalid",
-      ["admin","otherAdmin"].includes(name) ? "admin" : "logistics_approver",
+      ["admin","otherAdmin","abdullah"].includes(name) ? "admin" : "logistics_approver",
       name!=="inactive",
     ]);
   }
@@ -114,6 +114,14 @@ async function reset() {
   })) {
     for (const location of locations) await pool.query(
       "insert into logistics_approver_locations(profile_id,location) values($1,$2)",[ids[name],location],
+    );
+  }
+  const team = load("lib/approvals/logistics-team.ts");
+  const intended = load("lib/approvals/final-approvers.ts");
+  for (const location of team.PROJECT_LOCATIONS) {
+    await pool.query(
+      "insert into final_approver_locations(location,profile_id) values($1,$2)",
+      [location, intended.ABDULLAH_FINAL_LOCATIONS.includes(location) ? ids.abdullah : ids.admin],
     );
   }
   await pool.query(`insert into employees(id,badge,full_name,national_id,role)
@@ -172,8 +180,12 @@ try {
       attempts.length=0;
       actor=ids[name];
       assert.equal((await approvals.approveAuthorization({id})).ok,true);
-      assert.deepEqual(attempts.map(m=>m.to),["admin@example.invalid"]);
-      assert.equal((await pool.query("select approval_stage from authorizations where id=$1",[id])).rows[0].approval_stage,2);
+      const expectedFinal = ["Rigmove","Rental"].includes(location)
+        ? "abdullah@example.invalid" : "admin@example.invalid";
+      assert.deepEqual(attempts.map(m=>m.to),[expectedFinal]);
+      assert.equal((await pool.query("select approval_stage,approver_id from authorizations where id=$1",[id])).rows[0].approval_stage,2);
+      assert.equal((await pool.query("select approver_id from authorizations where id=$1",[id])).rows[0].approver_id,
+        ["Rigmove","Rental"].includes(location) ? ids.abdullah : ids.admin);
     }
     // Runtime reassignment, without changing the roster or mailer, changes routing.
     await reset();
@@ -277,23 +289,45 @@ try {
     assert.equal(attempts.length,1);
     assert(warnings.some(w=>w.includes("recipient_ineligible")));
   });
-  await test("Wrong-role final approver and inactive Admin get no email; routing remains unchanged",async()=>{
+  await test("Wrong-role or inactive stored final Admin fails closed without advancing",async()=>{
     const id=await submit(); attempts.length=0;
     await pool.query("update authorizations set approver_id=$2 where id=$1",[id,ids.waqar]);
-    assert.equal((await approvals.approveAuthorization({id})).ok,true);
+    assert.equal((await approvals.approveAuthorization({id})).ok,false);
+    assert.equal((await pool.query("select approval_stage from authorizations where id=$1",[id])).rows[0].approval_stage,1);
     assert.equal(attempts.length,0);
     await reset();
     const second=await submit(); attempts.length=0;
     await pool.query("update profiles set is_active=false where id=$1",[ids.admin]);
-    assert.equal((await approvals.approveAuthorization({id:second})).ok,true);
+    assert.equal((await approvals.approveAuthorization({id:second})).ok,false);
+    assert.equal((await pool.query("select approval_stage from authorizations where id=$1",[second])).rows[0].approval_stage,1);
     assert.equal(attempts.length,0);
   });
-  await test("Missing stored final approver retains existing in-app fallback but does not email fallback Admin",async()=>{
+  await test("Missing mapping or inactive mapped Admin fails closed with no request or Logistics email",async()=>{
+    await pool.query("delete from final_approver_locations where location='Dhahran Base'");
+    const missing=await actions.submitPublicRequest(input("Dhahran Base"));
+    assert.equal(missing.ok,false);
+    assert.equal(attempts.length,0);
+    assert.equal(Number((await pool.query("select count(*) from authorizations")).rows[0].count),0);
+    await reset();
+    await pool.query("update profiles set is_active=false where id=$1",[ids.admin]);
+    const inactive=await actions.submitPublicRequest(input("Dhahran Base"));
+    assert.equal(inactive.ok,false);
+    assert.equal(attempts.length,0);
+    assert.equal(Number((await pool.query("select count(*) from authorizations")).rows[0].count),0);
+  });
+  await test("Missing stored final approver fails closed without advancing or notifying another Admin",async()=>{
     const id=await submit(); attempts.length=0;
     await pool.query("update authorizations set approver_id=null where id=$1",[id]);
-    assert.equal((await approvals.approveAuthorization({id})).ok,true);
+    assert.equal((await approvals.approveAuthorization({id})).ok,false);
     assert.equal(attempts.length,0);
-    assert.equal(await notificationCount(),4);
+    assert.equal((await pool.query("select approval_stage from authorizations where id=$1",[id])).rows[0].approval_stage,1);
+    assert.equal(await notificationCount(),3);
+  });
+  await test("Forgot password works for Abdullah with a null password hash",async()=>{
+    const result=await auth.requestPasswordReset({email:"abdullah@example.invalid"});
+    assert.equal(result.ok,true);
+    assert.equal(result.data.emailed,true);
+    assert(attempts[0].text.includes("https://lvas.example.invalid/reset-password/"));
   });
   await test("Missing or unsafe APP_URL never produces insecure/public fallback email",async()=>{
     delete fixtureEnv.APP_URL;
