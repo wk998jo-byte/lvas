@@ -76,7 +76,7 @@ function load(file) {
   return loaded.exports;
 }
 async function fingerprint(table, suffix = "", params = []) {
-  assert.ok(["profiles", "employees", "sessions", "authorizations", "notifications", "logistics_approver_locations"].includes(table));
+  assert.ok(["profiles", "employees", "sessions", "authorizations", "notifications", "logistics_approver_locations", "final_approver_locations"].includes(table));
   return (await client.query(
     `select md5(coalesce(string_agg(row_to_json(t)::text, '' order by row_to_json(t)::text), '')) as hash from ${table} t ${suffix}`,
     params,
@@ -114,31 +114,42 @@ try {
       await client.query("insert into logistics_approver_locations values($1,$2)", [id, location]);
     }
   }
+  const syntheticFinalAdminId = randomUUID();
+  await client.query(
+    "insert into profiles(id,full_name,email,role,is_active) values($1,'Synthetic Final Admin','synthetic-final-admin@example.invalid','admin',true)",
+    [syntheticFinalAdminId],
+  );
+  for (const location of team.PROJECT_LOCATIONS) {
+    await client.query("insert into final_approver_locations(location,profile_id) values($1,$2)",
+      [location, syntheticFinalAdminId]);
+  }
   const vehicles = new Map();
   for (const location of team.PROJECT_LOCATIONS) {
     const vehicle = randomUUID();
     vehicles.set(location, vehicle);
     await client.query("insert into vehicles(id,door_number,make,model) values($1,$2,'Synthetic','Fixture')",
       [vehicle, `TEST-${location}`]);
-    await client.query(`insert into authorizations(vehicle_id,start_date,end_date,duration_label,status,location,approval_stage,employee_id)
-      values($1,'2030-01-01','2030-01-02','2 days','approved',$2,2,$3)`, [vehicle, location, await requestEmployee()]);
+    await client.query(`insert into authorizations(vehicle_id,start_date,end_date,duration_label,status,location,approval_stage,employee_id,approver_id)
+      values($1,'2030-01-01','2030-01-02','2 days','approved',$2,2,$3,$4)`,
+    [vehicle, location, await requestEmployee(), syntheticFinalAdminId]);
   }
   for (const location of team.PROJECT_LOCATIONS) {
     const id = randomUUID();
     requests.set(location, id);
     // Asset Department's vehicle conflict is in Dhahran Base: redact its details.
-    await client.query(`insert into authorizations(id,vehicle_id,start_date,end_date,duration_label,status,location,approval_stage,employee_id)
-      values($1,$2,'2030-01-01','2030-01-02','2 days','pending',$3,1,$4)`,
-    [id, vehicles.get(location === "Asset Department" ? "Dhahran Base" : location), location, await requestEmployee()]);
+    await client.query(`insert into authorizations(id,vehicle_id,start_date,end_date,duration_label,status,location,approval_stage,employee_id,approver_id)
+      values($1,$2,'2030-01-01','2030-01-02','2 days','pending',$3,1,$4,$5)`,
+    [id, vehicles.get(location === "Asset Department" ? "Dhahran Base" : location), location, await requestEmployee(), syntheticFinalAdminId]);
   }
   const liveId = randomUUID();
-  await client.query(`insert into authorizations(id,vehicle_id,start_date,end_date,duration_label,status,location,approval_stage,employee_id)
-    values($1,$2,'2031-01-01','2031-01-02','2 days','pending','Dhahran Base',2,$3)`,
-  [liveId, vehicles.get("Dhahran Base"), await requestEmployee()]);
+  await client.query(`insert into authorizations(id,vehicle_id,start_date,end_date,duration_label,status,location,approval_stage,employee_id,approver_id)
+    values($1,$2,'2031-01-01','2031-01-02','2 days','pending','Dhahran Base',2,$3,$4)`,
+  [liveId, vehicles.get("Dhahran Base"), await requestEmployee(), syntheticFinalAdminId]);
   const protectedBefore = {};
-  for (const table of ["profiles", "employees", "sessions", "authorizations", "notifications", "logistics_approver_locations"]) {
+  for (const table of ["profiles", "employees", "sessions", "authorizations", "notifications", "logistics_approver_locations", "final_approver_locations"]) {
     protectedBefore[table] = await fingerprint(table);
   }
+  const syntheticAdminFingerprint = await fingerprint("profiles", "where id = $1", [syntheticFinalAdminId]);
   assert.equal((await provisionJaved(client)).applied, false, "Default must be read-only");
   for (const [table, before] of Object.entries(protectedBefore)) assert.equal(await fingerprint(table), before);
   await assert.rejects(provisionJaved(client, { apply: true }), /confirmation/);
@@ -170,10 +181,11 @@ try {
   assert.equal((await provisionJaved(client, { apply: true, confirmation: CONFIRMATION })).applied, false);
   assert.equal(await fingerprint("profiles"), profileSnapshot);
   assert.equal(await fingerprint("logistics_approver_locations"), assignmentSnapshot);
-  for (const table of ["employees", "sessions", "authorizations", "notifications"]) {
+  for (const table of ["employees", "sessions", "authorizations", "notifications", "final_approver_locations"]) {
     assert.equal(await fingerprint(table), protectedBefore[table]);
   }
   assert.equal(await fingerprint("profiles", "where lower(email) <> lower($1)", [JAVED.email]), protectedBefore.profiles);
+  assert.equal(await fingerprint("profiles", "where id = $1", [syntheticFinalAdminId]), syntheticAdminFingerprint);
   assert.equal(await fingerprint("logistics_approver_locations", "where profile_id <> $1", [javed.id]), protectedBefore.logistics_approver_locations);
 
   // Actual reset issuance/delivery action, SQL redemption, password hash and login.
@@ -192,6 +204,8 @@ try {
   assert.equal((await auth.resetPasswordWithToken(resetInput)).ok, false, "Token reuse rejected");
   assert.equal((await auth.signInWithPassword({ email: JAVED.email, password: resetInput.new_password })).ok, true);
   assert.equal(await fingerprint("profiles", "where lower(email) <> lower($1)", [JAVED.email]), protectedBefore.profiles);
+  assert.equal(await fingerprint("profiles", "where id = $1", [syntheticFinalAdminId]), syntheticAdminFingerprint);
+  assert.equal(await fingerprint("final_approver_locations"), protectedBefore.final_approver_locations);
   assert.equal(await fingerprint("sessions"), protectedBefore.sessions);
   const afterPassword = await fingerprint("profiles");
   assert.equal((await provisionJaved(client, { apply: true, confirmation: CONFIRMATION })).applied, false);
@@ -242,11 +256,36 @@ try {
   assert.equal((await approvals.approveAuthorization({ id: requests.get("Fabshop-Salsil") })).ok, false);
   // Positive action routing for the new department and canonical Fabshop.
   actor = { id: javed.id, role: "logistics_approver" };
-  assert.equal((await approvals.approveAuthorization({ id: requests.get("Asset Department") })).ok, true);
-  actor = { id: profileIds.get(team.LOGISTICS_ROSTER.find(person => person.badge === "81337").email), role: "logistics_approver" };
-  assert.equal((await approvals.rejectAuthorization({ id: requests.get("Fabshop-Salsil"), rejection_reason: "Synthetic assigned-project rejection" })).ok, true);
-  assert.equal((await queries.getAuthorizationById(liveId)).approval_stage, 2);
-  assert.equal((await queries.getAuthorizationById(liveId)).status, "pending");
+  const assetPending = await queries.getAuthorizationById(requests.get("Asset Department"));
+  assert.equal(assetPending.approver_id, syntheticFinalAdminId);
+  const syntheticAdmin = (await client.query(
+    "select role, is_active from profiles where id=$1",
+    [syntheticFinalAdminId],
+  )).rows[0];
+  assert.equal(syntheticAdmin.role, "admin");
+  assert.equal(syntheticAdmin.is_active, true);
+  const assetMapping = (await client.query(
+    "select profile_id from final_approver_locations where location='Asset Department'",
+  )).rows[0];
+  assert.equal(assetMapping.profile_id, syntheticFinalAdminId);
+  const assetApproved = await approvals.approveAuthorization({ id: requests.get("Asset Department") });
+  assert.equal(assetApproved.ok, true);
+  assert.equal(assetApproved.data.approval_stage, 2);
+  assert.equal(assetApproved.data.approver_id, syntheticFinalAdminId);
+  assert.equal(assetApproved.data.first_approver_id, javed.id);
+  const fabshopRejectorId = profileIds.get(team.LOGISTICS_ROSTER.find(person => person.badge === "81337").email);
+  actor = { id: fabshopRejectorId, role: "logistics_approver" };
+  const fabshopRejected = await approvals.rejectAuthorization({
+    id: requests.get("Fabshop-Salsil"),
+    rejection_reason: "Synthetic assigned-project rejection",
+  });
+  assert.equal(fabshopRejected.ok, true);
+  assert.equal(fabshopRejected.data.approver_id, syntheticFinalAdminId);
+  assert.equal(fabshopRejected.data.rejected_by_id, fabshopRejectorId);
+  const live = await queries.getAuthorizationById(liveId);
+  assert.equal(live.approval_stage, 2);
+  assert.equal(live.status, "pending");
+  assert.equal(live.approver_id, syntheticFinalAdminId);
   // CLI safety: no target / wrong target / missing confirmation cannot execute.
   for (const args of [[], ["--apply"], ["--expected-target=wrong:15439/heliumdb"],
     ["--apply", "--expected-target=127.0.0.1:15439/heliumdb"]]) {
