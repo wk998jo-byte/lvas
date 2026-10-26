@@ -23,6 +23,8 @@ const token = "22222222-2222-4222-8222-222222222222";
 const employeeId = "33333333-3333-4333-8333-333333333333";
 const vehicleId = "44444444-4444-4444-8444-444444444444";
 const profileId = "55555555-5555-4555-8555-555555555555";
+const otherAdminId = "77777777-7777-4777-8777-777777777777";
+let actorId = profileId;
 const fakeEnv = { NODE_ENV: "production", APP_URL: "https://example.invalid" };
 let now = "2026-10-06T16:00:00.000Z"; // Saudi 19:00.
 let lookupQueries = [];
@@ -57,7 +59,7 @@ function load(file) {
       },
     };
     if (name === "@/lib/auth/guards") return { requireRole: async (role) => {
-      assert.equal(role, "admin"); return { id: profileId, role: "admin" };
+      assert.equal(role, "admin"); return { id: actorId, role: "admin" };
     } };
     if (name === "next/cache") return { revalidatePath: () => {} };
     if (name === "qrcode.react") return { QRCodeSVG: ({ value }) => {
@@ -102,16 +104,16 @@ try {
       contact_mobile text, approver_id uuid, duration_label text, purpose text,
       rejection_reason text, justification text, approval_stage integer,
       first_approver_id uuid, first_approved_at timestamptz, approved_at timestamptz,
-      rejected_at timestamptz, created_at timestamptz, updated_at timestamptz
+      rejected_at timestamptz, rejected_by_id uuid, created_at timestamptz, updated_at timestamptz
     ) on commit drop;
   `);
   await client.query("insert into pg_temp.vehicles values ($1,'TEST-PLATE','Test Make','Test Model','006-01-736')", [vehicleId]);
   await client.query("insert into pg_temp.employees values ($1,'Synthetic Driver','TEST-BADGE','PRIVATE ID','PRIVATE MOBILE')", [employeeId]);
   await client.query("insert into pg_temp.profiles values ($1,'Synthetic Account','private@example.invalid')", [profileId]);
   await client.query(`insert into pg_temp.authorizations
-    (id, vehicle_id, employee_id, public_token, status, start_date, end_date, usage_after, location, duration_label, justification, contact_mobile)
-    values ($1,$2,$3,$4,'approved','2026-10-06','2026-10-06','19:00','Jafurah','1 day','PRIVATE JUSTIFICATION','PRIVATE MOBILE')`,
-  [id, vehicleId, employeeId, token]);
+    (id, vehicle_id, employee_id, public_token, status, start_date, end_date, usage_after, location, duration_label, justification, contact_mobile, approver_id)
+    values ($1,$2,$3,$4,'approved','2026-10-06','2026-10-06','19:00','Jafurah','1 day','PRIVATE JUSTIFICATION','PRIVATE MOBILE',$5)`,
+  [id, vehicleId, employeeId, token, profileId]);
 
   const { getGateVerification } = load("lib/authorizations/gate-lookup.ts");
   const { evaluateGateAuthorization } = load("lib/authorizations/gate-verification.ts");
@@ -130,6 +132,7 @@ try {
   assert.doesNotMatch(html, /Time unavailable/);
   assert.match(html, /6 Oct 2026, 19:00/);
   assert.doesNotMatch(JSON.stringify(valid) + html, /PRIVATE|private@example|11111111-1111|22222222-2222/);
+  assert.doesNotMatch(JSON.stringify(valid) + html, /Synthetic Account|55555555-5555|77777777-7777/);
   assert.equal(valid.details.doorNumber, "006-01-736");
   assert.deepEqual(Object.keys(valid.details).sort(), ["badge", "doorNumber", "driver", "endDate", "location", "plate", "reference", "startDate", "usageAfter", "vehicle"].sort());
   assert.ok(lookupQueries.every(({ sql, params }) => /^select/i.test(sql.trim()) && params[0] === token && /a.public_token = \$1/.test(sql)));
@@ -153,8 +156,24 @@ try {
   }
   await client.query("update pg_temp.authorizations set status='approved'");
   const { endAuthorization } = load("actions/approvals.ts");
+  const { getAuthorizationById } = load("lib/db/queries.ts");
+  const beforeEnd = await getAuthorizationById(id);
+  assert.equal(beforeEnd.approver_id, profileId);
+  assert.equal(beforeEnd.status, "approved");
+  assert.equal(beforeEnd.rejected_by_id, null);
   assert.equal((await verify()).state, "valid");
+  actorId = otherAdminId;
+  assert.equal((await endAuthorization({ id })).ok, false, "unassigned Admin cannot end another Admin's authorization");
+  const afterDenied = await getAuthorizationById(id);
+  assert.equal(afterDenied.status, "approved");
+  assert.equal(afterDenied.approver_id, profileId);
+  assert.equal(afterDenied.rejected_by_id, null);
+  actorId = profileId;
   assert.equal((await endAuthorization({ id })).ok, true, "actual Admin end action works on isolated fixtures");
+  const afterEnd = await getAuthorizationById(id);
+  assert.equal(afterEnd.status, "cancelled");
+  assert.equal(afterEnd.approver_id, profileId);
+  assert.equal(afterEnd.rejected_by_id, null);
   assert.equal((await verify()).state, "invalid", "next scan reflects actual cancellation immediately");
   assert.match((await verify()).reason, /cancelled/);
   await client.query("update pg_temp.authorizations set status='approved', end_date='2026-10-05'");
