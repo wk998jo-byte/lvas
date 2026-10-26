@@ -14,8 +14,9 @@ import { createRequire } from "node:module";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const nativeRequire = createRequire(import.meta.url);
 const originalLocations = ["Dhahran Base", "Asset Department", "Facility", "Fabshop-Salsil", "Jafurah", "MGS", "Rastanura", "Yanbu", "Zuluf"];
-const newLocations = ["Central Workshop", "RMD Salasil Workshop", "Rigmove", "Rental"];
-const locations = [...originalLocations, ...newLocations];
+const fourLocations = ["Central Workshop", "RMD Salasil Workshop", "Rigmove", "Rental"];
+const addedLocations = ["Transport", "PCD", "Procurement", "HR", "Finance", "Warehouse", "SCC", "Safety"];
+const locations = [...originalLocations, ...fourLocations, ...addedLocations];
 const retiredFabshop = ["Fabshop", "Salasil"].join("-");
 const retiredDepartment = ["Dhahran Base", "Asset Department"].join("-");
 const mutebId = "synthetic-profile";
@@ -25,7 +26,7 @@ const rows = locations.map((location, index) => ({
   vehicle_id: location, start_date: "2026-10-06", end_date: "2026-10-12",
   created_at: "2026-10-06", vehicles: { plate_number: location },
   authorized_to: `Employee ${location}`,
-  approver_id: ["Rigmove", "Rental"].includes(location) ? abdullahId : mutebId,
+  approver_id: ["Rigmove", "Rental", "Transport"].includes(location) ? abdullahId : mutebId,
 }));
 rows.push({ ...rows[0], id: "legacy-null", location: null, vehicle_id: "legacy" });
 rows.push({ ...rows[0], id: "legacy-fabshop", location: retiredFabshop, vehicle_id: "legacy-fabshop" });
@@ -133,8 +134,8 @@ function load(file) {
 }
 const team = load("lib/approvals/logistics-team.ts");
 assert.deepEqual(Array.from(team.PROJECT_LOCATIONS), locations);
-assert.equal(team.PROJECT_LOCATIONS.length, 13);
-assert.equal(new Set(team.PROJECT_LOCATIONS).size, 13);
+assert.equal(team.PROJECT_LOCATIONS.length, 21);
+assert.equal(new Set(team.PROJECT_LOCATIONS).size, 21);
 const validation = load("lib/validations/index.ts");
 const requestInput = {
   vehicle_id: "00000000-0000-4000-8000-000000000001",
@@ -152,21 +153,51 @@ for (const location of [retiredFabshop, retiredDepartment, "*", "asset departmen
   assert.equal(validation.publicRequestSchema.safeParse({ ...requestInput, location }).success, false);
 }
 assert.ok(source("components/public/public-request-form.tsx").includes("PROJECT_LOCATIONS.map("));
+const sharedNewLocations = [
+  "Transport", "PCD", "Procurement", "HR",
+  "Finance", "Warehouse", "SCC", "Safety",
+];
 const targets = {
-  "1444": ["Asset Department"], "81663": ["Dhahran Base"], "11220": ["Dhahran Base"],
-  "9146": ["Facility"], "81337": ["Fabshop-Salsil"], "11027": ["Jafurah"],
-  "8627": ["MGS"], "8970": ["Rastanura"], "81339": ["Yanbu"], "81386": ["Zuluf"],
+  "1444": ["Asset Department"],
+  "81663": ["Dhahran Base", ...sharedNewLocations],
+  "11220": ["Dhahran Base", ...sharedNewLocations],
+  "9146": ["Facility"],
+  "81337": ["Fabshop-Salsil"],
+  "11027": ["Jafurah"],
+  "8627": ["MGS"],
+  "8970": ["Rastanura"],
+  "81339": ["Yanbu"],
+  "81386": ["Zuluf"],
   "81732": ["Yanbu"],
-  "8974": ["Central Workshop"], "8701": ["RMD Salasil Workshop"],
-  "11124": ["Rigmove"], "1685": ["Rental"],
+  "8974": ["Central Workshop"],
+  "8701": ["RMD Salasil Workshop"],
+  "11124": ["Rigmove"],
+  "1685": ["Rental"],
 };
 for (const [badge, expected] of Object.entries(targets)) {
   assert.deepEqual(Array.from(team.LOGISTICS_ROSTER.find(person => person.badge === badge).locations), expected);
 }
-const noorah = team.LOGISTICS_ROSTER.find(person => person.fullName === "Noorah");
-assert.deepEqual(Array.from(noorah.locations), originalLocations);
-for (const location of newLocations) {
-  assert.equal(team.LOGISTICS_ROSTER.filter(person => person.locations.includes(location)).length, 1);
+assert.equal(
+  team.LOGISTICS_ROSTER.some(person => person.email === "noorah.alshamsi@binquraya.com"),
+  false,
+);
+const haroon = team.LOGISTICS_ROSTER.find(
+  person => person.email === "haroon.rasheed@binquraya.com",
+);
+assert.ok(haroon);
+assert.deepEqual(Array.from(haroon.locations), ["Facility"]);
+
+for (const location of fourLocations) {
+  assert.equal(
+    team.LOGISTICS_ROSTER.filter(person => person.locations.includes(location)).length,
+    1,
+  );
+}
+for (const location of addedLocations) {
+  assert.equal(
+    team.LOGISTICS_ROSTER.filter(person => person.locations.includes(location)).length,
+    2,
+  );
 }
 assert.ok(team.LOGISTICS_ROSTER.every(person => person.locations.every(location => locations.includes(location))));
 queries = load("lib/db/queries.ts");
@@ -260,4 +291,4 @@ assert.ok(!JSON.stringify(await history()).includes("PRIVATE DATABASE"));
 assert.ok(!JSON.stringify(await detail({ params: Promise.resolve({ id: jafurahRow.id }) })).includes("PRIVATE DATABASE"));
 assert.ok(!source("app/(dashboard)/history/page.tsx").includes("error.message"));
 assert.ok(!source("app/(dashboard)/history/[id]/page.tsx").includes("error.message"));
-console.log("logistics-location-access: PASS (exact 13 locations, unchanged original nine/Noorah scope, four single-site approvers, request validation/dropdown, queries, pages, legacy denial, overlap redaction)");
+console.log("logistics-location-access: PASS (exact 21 locations, Noorah retired, Haroon Facility, Waqar/Anees shared new-site scope, request validation/dropdown, queries, pages, legacy denial, overlap redaction)");

@@ -14,6 +14,14 @@ export const PROJECT_LOCATIONS = [
   "RMD Salasil Workshop",
   "Rigmove",
   "Rental",
+  "Transport",
+  "PCD",
+  "Procurement",
+  "HR",
+  "Finance",
+  "Warehouse",
+  "SCC",
+  "Safety",
 ] as const;
 
 export type ProjectLocation = (typeof PROJECT_LOCATIONS)[number];

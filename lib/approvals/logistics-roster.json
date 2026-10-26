@@ -4,121 +4,159 @@
     "email": "javed.khan@binquraya.com",
     "badge": "1444",
     "position": "Section Head Logistics",
-    "locations": ["Asset Department"]
+    "locations": [
+      "Asset Department"
+    ]
   },
   {
     "fullName": "Waqar Ahmad",
     "email": "waqar.ahmad@binquraya.com",
     "badge": "81663",
     "position": "Logistic Coordinator",
-    "locations": ["Dhahran Base"]
+    "locations": [
+      "Dhahran Base",
+      "Transport",
+      "PCD",
+      "Procurement",
+      "HR",
+      "Finance",
+      "Warehouse",
+      "SCC",
+      "Safety"
+    ]
   },
   {
     "fullName": "Muhammad Anees Ejaz",
     "email": "muhammad.ejaz@binquraya.com",
     "badge": "11220",
     "position": "Equipment Coordinator",
-    "locations": ["Dhahran Base"]
+    "locations": [
+      "Dhahran Base",
+      "Transport",
+      "PCD",
+      "Procurement",
+      "HR",
+      "Finance",
+      "Warehouse",
+      "SCC",
+      "Safety"
+    ]
   },
   {
     "fullName": "Hermes Jr. Gateren Rosalejos",
     "email": "hermes.rosalejos@binquraya.com",
     "badge": "9146",
     "position": "Document Controller",
-    "locations": ["Facility"]
+    "locations": [
+      "Facility"
+    ]
   },
   {
     "fullName": "Mohammad Irphan Ansari",
     "email": "mohammed.ansari@binquraya.com",
     "badge": "81337",
     "position": "Logistic Supervisor",
-    "locations": ["Fabshop-Salsil"]
+    "locations": [
+      "Fabshop-Salsil"
+    ]
   },
   {
     "fullName": "Muhammad Ali Muhammad Ijaz",
     "email": "muhammad.ali@binquraya.com",
     "badge": "11027",
     "position": "Logistic Supervisor",
-    "locations": ["Jafurah"]
+    "locations": [
+      "Jafurah"
+    ]
   },
   {
     "fullName": "Taalam Khan",
     "email": "taalam.khan@binquraya.com",
     "badge": "8627",
     "position": "Logistic Coordinator",
-    "locations": ["MGS"]
+    "locations": [
+      "MGS"
+    ]
   },
   {
     "fullName": "Alyas Hussain Shah",
     "email": "alyas.shah@binquraya.com",
     "badge": "8970",
     "position": "Logistic Supervisor",
-    "locations": ["Rastanura"]
+    "locations": [
+      "Rastanura"
+    ]
   },
   {
     "fullName": "Aiyan Rasool",
     "email": "aiyan.rasool@binquraya.com",
     "badge": "81732",
     "position": "Logistic Coordinator",
-    "locations": ["Yanbu"]
+    "locations": [
+      "Yanbu"
+    ]
   },
   {
     "fullName": "Raj Kumar Singh",
     "email": "raj.singh@binquraya.com",
     "badge": "81339",
     "position": "Logistic Coordinator",
-    "locations": ["Yanbu"]
+    "locations": [
+      "Yanbu"
+    ]
   },
   {
     "fullName": "Yusuf Jameel",
     "email": "yusuf.jameel@binquraya.com",
     "badge": "81386",
     "position": "Logistic Coordinator",
-    "locations": ["Zuluf"]
+    "locations": [
+      "Zuluf"
+    ]
   },
   {
     "fullName": "Ashwin Suresh Kumar",
     "email": "aswin.kumar@binquraya.com",
     "badge": "8974",
     "position": "Assistant Workshop Manager",
-    "locations": ["Central Workshop"]
+    "locations": [
+      "Central Workshop"
+    ]
   },
   {
     "fullName": "Ninju Moochikkal",
     "email": "ninju.moochikkal@binquraya.com",
     "badge": "8701",
     "position": "Workshop Manager Rig Move",
-    "locations": ["RMD Salasil Workshop"]
+    "locations": [
+      "RMD Salasil Workshop"
+    ]
   },
   {
     "fullName": "Khalil Jabran",
     "email": "jabran.khalil@binquraya.com",
     "badge": "11124",
     "position": "Rig Move Operation Manager",
-    "locations": ["Rigmove"]
+    "locations": [
+      "Rigmove"
+    ]
   },
   {
     "fullName": "Anwin Sirajin Arifin",
     "email": "anwin.arifin@binquraya.com",
     "badge": "1685",
     "position": "Commercial Operations Manager",
-    "locations": ["Rental"]
+    "locations": [
+      "Rental"
+    ]
   },
   {
-    "fullName": "Noorah",
-    "email": "noorah.alshamsi@binquraya.com",
+    "fullName": "Haroon Rasheed",
+    "email": "haroon.rasheed@binquraya.com",
     "badge": "",
     "position": "",
     "locations": [
-      "Dhahran Base",
-      "Asset Department",
-      "Facility",
-      "Fabshop-Salsil",
-      "Jafurah",
-      "MGS",
-      "Rastanura",
-      "Yanbu",
-      "Zuluf"
+      "Facility"
     ]
   }
 ]

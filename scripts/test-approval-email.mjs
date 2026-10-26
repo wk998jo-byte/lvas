@@ -19,7 +19,7 @@ const pool = new Pool({
 const identity = (await pool.query("select current_setting('data_directory') as dir")).rows[0];
 assert.equal(identity.dir, "/tmp/lvas-approval-email-pg", "Only this disposable cluster is permitted");
 const schema = readFileSync(path.join(root, "db/schema.sql"), "utf8");
-const ids = Object.fromEntries(["ejaz","noorah","waqar","jafurah","inactive","empty","invalid",
+const ids = Object.fromEntries(["ejaz","waqar","haroon","jafurah","inactive","empty","invalid",
   "ashwin","ninju","khalil","anwin",
   "admin","otherAdmin","abdullah","employee","vehicle"].map(k => [k, randomUUID()]));
 const fixtureEnv = {
@@ -95,7 +95,7 @@ function load(file) {
 async function reset() {
   await pool.query("drop schema public cascade; create schema public");
   await pool.query(schema);
-  for (const name of ["ejaz","noorah","waqar","jafurah","inactive","empty","invalid","admin","otherAdmin",
+  for (const name of ["ejaz","waqar","haroon","jafurah","inactive","empty","invalid","admin","otherAdmin",
     "abdullah","ashwin","ninju","khalil","anwin"]) {
     await pool.query(`insert into profiles(id,full_name,email,role,is_active)
       values($1,$2,$3,$4,$5)`,[
@@ -105,12 +105,19 @@ async function reset() {
       name!=="inactive",
     ]);
   }
+  const sharedAdded = ["Transport","PCD","Procurement","HR","Finance","Warehouse","SCC","Safety"];
   for (const [name,locations] of Object.entries({
-    ejaz:["Dhahran Base"], noorah:["Dhahran Base","Jafurah","Facility"],
-    waqar:["Dhahran Base"], jafurah:["Jafurah"], inactive:["Dhahran Base"],
-    empty:["Facility"], invalid:["Facility"],
-    ashwin:["Central Workshop"], ninju:["RMD Salasil Workshop"],
-    khalil:["Rigmove"], anwin:["Rental"],
+    ejaz:["Dhahran Base", ...sharedAdded],
+    waqar:["Dhahran Base", ...sharedAdded],
+    haroon:["Facility"],
+    jafurah:["Jafurah"],
+    inactive:["Dhahran Base"],
+    empty:["Facility"],
+    invalid:["Facility"],
+    ashwin:["Central Workshop"],
+    ninju:["RMD Salasil Workshop"],
+    khalil:["Rigmove"],
+    anwin:["Rental"],
   })) {
     for (const location of locations) await pool.query(
       "insert into logistics_approver_locations(profile_id,location) values($1,$2)",[ids[name],location],
@@ -163,7 +170,7 @@ async function test(name,fn) {
   console.log("PASS: "+name);
 }
 try {
-  await test("Four new locations use live assignments, single-site recipients, and no Noorah broadcast",async()=>{
+  await test("Existing single-site locations use exact assigned recipients",async()=>{
     for (const [location,name] of [
       ["Central Workshop","ashwin"],["RMD Salasil Workshop","ninju"],
       ["Rigmove","khalil"],["Rental","anwin"],
@@ -195,6 +202,46 @@ try {
     await submit("Central Workshop");
     assert.deepEqual(attempts.map(m=>m.to),["waqar@example.invalid"]);
   });
+  await test("Eight added locations notify Waqar and Anees; Transport final routes to Abdullah",async()=>{
+    for (const location of ["Transport","PCD","Procurement","HR","Finance","Warehouse","SCC","Safety"]) {
+      await reset();
+      attempts.length=0;
+
+      const id=await submit(location);
+
+      assert.deepEqual(
+        attempts.map(m=>m.to).sort(),
+        ["ejaz@example.invalid","waqar@example.invalid"],
+        location,
+      );
+
+      attempts.length=0;
+      actor=ids.ejaz;
+
+      const approved=await approvals.approveAuthorization({id});
+      assert.equal(approved.ok,true,location);
+
+      const expectedFinal =
+        location === "Transport"
+          ? "abdullah@example.invalid"
+          : "admin@example.invalid";
+
+      assert.deepEqual(attempts.map(m=>m.to),[expectedFinal],location);
+
+      const row=(await pool.query(
+        "select approval_stage,approver_id from authorizations where id=$1",
+        [id],
+      )).rows[0];
+
+      assert.equal(row.approval_stage,2,location);
+      assert.equal(
+        row.approver_id,
+        location === "Transport" ? ids.abdullah : ids.admin,
+        location,
+      );
+    }
+  });
+
   await test("Independent site fixtures do not weaken the real employee submission cooldown",async()=>{
     await submit("Central Workshop");
     const before=(await pool.query("select count(*)::int n from authorizations")).rows[0].n;
@@ -206,8 +253,8 @@ try {
   });
   await test("Dhahran selects exactly assigned active Logistics recipients; business content and protected links",async()=>{
     const id=await submit();
-    assert.deepEqual(attempts.map(m=>m.to).sort(),["ejaz@example.invalid","noorah@example.invalid","waqar@example.invalid"]);
-    assert.equal(await notificationCount(),3);
+    assert.deepEqual(attempts.map(m=>m.to).sort(),["ejaz@example.invalid","waqar@example.invalid"]);
+    assert.equal(await notificationCount(),2);
     for (const m of attempts) {
       assert.equal(m.subject,"LVAS – New Vehicle Authorization Request");
       for(const value of ["Synthetic Employee","TEST-123","006-01-TEST","Toyota Synthetic Model",
@@ -222,7 +269,7 @@ try {
   });
   await test("Jafurah selects only assigned recipients",async()=>{
     await submit("Jafurah");
-    assert.deepEqual(attempts.map(m=>m.to).sort(),["jafurah@example.invalid","noorah@example.invalid"]);
+    assert.deepEqual(attempts.map(m=>m.to).sort(),["jafurah@example.invalid"]);
   });
   await test("Unassigned location cannot route globally or create a request",async()=>{
     const result=await actions.submitPublicRequest(input("MGS"));
@@ -232,8 +279,8 @@ try {
   });
   await test("Existing event retry creates no duplicate notification/email",async()=>{
     const id=await submit();
-    await events.notifyApprovalEvent(eventInput(id,[ids.ejaz,ids.noorah,ids.waqar]));
-    assert.equal(attempts.length,3); assert.equal(await notificationCount(),3);
+    await events.notifyApprovalEvent(eventInput(id,[ids.ejaz,ids.waqar]));
+    assert.equal(attempts.length,2); assert.equal(await notificationCount(),2);
   });
   await test("Real unique index arbitrates 20 concurrent identical events",async()=>{
     const id=await submit();
@@ -257,9 +304,9 @@ try {
   await test("SMTP failure leaves request creation successful, notifications retained and no repeat attempt",async()=>{
     failSmtp=true;
     const id=await submit();
-    assert.equal(attempts.length,3); assert.equal(await notificationCount(),3);
-    await events.notifyApprovalEvent(eventInput(id,[ids.ejaz,ids.noorah,ids.waqar]));
-    assert.equal(attempts.length,3);
+    assert.equal(attempts.length,2); assert.equal(await notificationCount(),2);
+    await events.notifyApprovalEvent(eventInput(id,[ids.ejaz,ids.waqar]));
+    assert.equal(attempts.length,2);
     assert.equal((await pool.query("select status from authorizations where id=$1",[id])).rows[0].status,"pending");
     assert(!warnings.join("").includes("synthetic-secret"));
     assert(!warnings.join("").includes("PRIVATE SMTP"));
@@ -270,7 +317,7 @@ try {
     assert.equal((await approvals.approveAuthorization({id})).ok,true);
     const a=(await pool.query("select approval_stage,status from authorizations where id=$1",[id])).rows[0];
     assert.equal(a.approval_stage,2); assert.equal(a.status,"pending");
-    assert.equal(attempts.length,1); assert.equal(await notificationCount(),4);
+    assert.equal(attempts.length,1); assert.equal(await notificationCount(),3);
   });
   await test("Historical stage-2 request is not automatically emailed or reapproved",async()=>{
     const historical="aa495f6b-91d9-4eef-b1e2-6b32eb82714a";
@@ -284,7 +331,7 @@ try {
   });
   await test("Inactive, empty, invalid-email and unassigned recipients are safely skipped",async()=>{
     const id=await submit("Facility");
-    assert.deepEqual(attempts.map(m=>m.to),["noorah@example.invalid"]);
+    assert.deepEqual(attempts.map(m=>m.to),["haroon@example.invalid"]);
     await events.notifyApprovalEvent(eventInput(id,[ids.inactive,ids.jafurah]));
     assert.equal(attempts.length,1);
     assert(warnings.some(w=>w.includes("recipient_ineligible")));
@@ -321,7 +368,7 @@ try {
     assert.equal((await approvals.approveAuthorization({id})).ok,false);
     assert.equal(attempts.length,0);
     assert.equal((await pool.query("select approval_stage from authorizations where id=$1",[id])).rows[0].approval_stage,1);
-    assert.equal(await notificationCount(),3);
+    assert.equal(await notificationCount(),2);
   });
   await test("Forgot password works for Abdullah with a null password hash",async()=>{
     const result=await auth.requestPasswordReset({email:"abdullah@example.invalid"});
@@ -332,7 +379,7 @@ try {
   await test("Missing or unsafe APP_URL never produces insecure/public fallback email",async()=>{
     delete fixtureEnv.APP_URL;
     await submit();
-    assert.equal(attempts.length,0); assert.equal(await notificationCount(),3);
+    assert.equal(attempts.length,0); assert.equal(await notificationCount(),2);
     await reset();
     fixtureEnv.APP_URL="https://private-user:private-password@lvas.example.invalid/track/private";
     await submit("Jafurah");

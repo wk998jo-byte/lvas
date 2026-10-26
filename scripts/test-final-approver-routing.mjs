@@ -55,8 +55,8 @@ const intended = (() => {
 })();
 
 intended.assertCanonicalFinalApproverCoverage();
-assert.equal(intended.MUTEB_FINAL_LOCATIONS.length, 11);
-assert.deepEqual(Array.from(intended.ABDULLAH_FINAL_LOCATIONS), ["Rigmove", "Rental"]);
+assert.equal(intended.MUTEB_FINAL_LOCATIONS.length, 18);
+assert.deepEqual(Array.from(intended.ABDULLAH_FINAL_LOCATIONS), ["Rigmove", "Rental", "Transport"]);
 assert.equal(intended.MUTEB_FINAL_APPROVER_EMAIL, "muteb@binquraya.com");
 assert.equal(intended.ABDULLAH_FINAL_APPROVER_EMAIL, "abdullah@binquraya.com");
 
@@ -73,6 +73,7 @@ for (const file of [
   assert.doesNotMatch(text, /abdullah@binquraya\.com|muteb@binquraya\.com/);
   assert.doesNotMatch(text, /location === ["']Rigmove["']/);
   assert.doesNotMatch(text, /location === ["']Rental["']/);
+  assert.doesNotMatch(text, /location === ["']Transport["']/);
 }
 
 assert.match(source("actions/public-requests.ts"), /getEligibleFinalApproverIdForLocation/);
@@ -132,15 +133,44 @@ const adapter = {
     }
     if (/from logistics_approver_locations l/.test(text) && /p\.role = 'logistics_approver'/.test(text)) {
       if (params[0] === "Jafurah") return [{ profile_id: logistics }];
-      if (params[0] === "Rigmove" || params[0] === "Rental") return [{ profile_id: otherLogistics }];
-      if (params[0] === "Dhahran Base" || params[0] === "Central Workshop" || params[0] === "RMD Salasil Workshop") {
+      if (["Rigmove", "Rental", "Transport"].includes(params[0])) {
+        return [{ profile_id: otherLogistics }];
+      }
+      if ([
+        "Dhahran Base",
+        "Central Workshop",
+        "RMD Salasil Workshop",
+        "PCD",
+        "Procurement",
+        "HR",
+        "Finance",
+        "Warehouse",
+        "SCC",
+        "Safety",
+      ].includes(params[0])) {
         return [{ profile_id: logistics }];
       }
       return [];
     }
     if (/from logistics_approver_locations/.test(text) && /where profile_id = \$1/.test(text)) {
-      if (params[0] === logistics) return [{ location: "Jafurah" }, { location: "Dhahran Base" }, { location: "Central Workshop" }, { location: "RMD Salasil Workshop" }];
-      if (params[0] === otherLogistics) return [{ location: "Rigmove" }, { location: "Rental" }];
+      if (params[0] === logistics) return [
+        { location: "Jafurah" },
+        { location: "Dhahran Base" },
+        { location: "Central Workshop" },
+        { location: "RMD Salasil Workshop" },
+        { location: "PCD" },
+        { location: "Procurement" },
+        { location: "HR" },
+        { location: "Finance" },
+        { location: "Warehouse" },
+        { location: "SCC" },
+        { location: "Safety" },
+      ];
+      if (params[0] === otherLogistics) return [
+        { location: "Rigmove" },
+        { location: "Rental" },
+        { location: "Transport" },
+      ];
       return [];
     }
     if (/insert into authorizations/.test(text)) {
@@ -312,9 +342,17 @@ resetData();
 for (const [location, expected] of [
   ["Rigmove", abdullah],
   ["Rental", abdullah],
+  ["Transport", abdullah],
   ["Dhahran Base", muteb],
   ["Central Workshop", muteb],
   ["RMD Salasil Workshop", muteb],
+  ["PCD", muteb],
+  ["Procurement", muteb],
+  ["HR", muteb],
+  ["Finance", muteb],
+  ["Warehouse", muteb],
+  ["SCC", muteb],
+  ["Safety", muteb],
 ]) {
   const result = await publicActions.submitPublicRequest(request(location));
   assert.equal(result.ok, true, location);
@@ -323,7 +361,7 @@ for (const [location, expected] of [
   assert.equal(row.approval_stage, 1);
 }
 
-assert.equal(authorizations.length, 5);
+assert.equal(authorizations.length, 13);
 assert.ok(notifications.every((item) => item.event === "request_submitted"));
 assert.ok(!emails.some((item) => item.event === "ready_for_final_approval"));
 

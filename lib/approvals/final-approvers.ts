@@ -8,7 +8,7 @@ export const ABDULLAH_FINAL_APPROVER_EMAIL = "abdullah@binquraya.com";
  * Seed/alignment contract only. Request and approval code must resolve the
  * final Admin from final_approver_locations, never from these lists.
  */
-export const ABDULLAH_FINAL_LOCATIONS = ["Rigmove", "Rental"] as const satisfies readonly ProjectLocation[];
+export const ABDULLAH_FINAL_LOCATIONS = ["Rigmove", "Rental", "Transport"] as const satisfies readonly ProjectLocation[];
 
 export const MUTEB_FINAL_LOCATIONS = PROJECT_LOCATIONS.filter(
   (location): location is Exclude<ProjectLocation, (typeof ABDULLAH_FINAL_LOCATIONS)[number]> =>
