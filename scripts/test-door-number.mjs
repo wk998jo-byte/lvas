@@ -50,6 +50,10 @@ const modules = new Map();
 const qrValues = [];
 let fakeError = null;
 const now = new Date("2026-10-08T16:30:00Z");
+class TestDate extends Date {
+  constructor(...args) { super(...(args.length ? args : [now])); }
+  static now() { return new Date(now).getTime(); }
+}
 const adapter = {
   query: async (sql, params = []) => (await client.query(sql, params)).rows,
   queryOne: async (sql, params = []) => (await client.query(sql, params)).rows[0] ?? null,
@@ -89,7 +93,7 @@ function load(file) {
   };
   vm.runInNewContext(ts.transpileModule(source(file), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
-  }).outputText, { require, module: cjsModule, exports: cjsModule.exports, process, console, Date, Intl, URL, Buffer, setTimeout }, { filename: file });
+  }).outputText, { require, module: cjsModule, exports: cjsModule.exports, process, console, Date: TestDate, Intl, URL, Buffer, setTimeout }, { filename: file });
   modules.set(file, cjsModule.exports);
   return cjsModule.exports;
 }
