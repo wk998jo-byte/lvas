@@ -187,6 +187,7 @@ create table if not exists authorizations (
   rejection_reason text,
   approved_at timestamptz,
   rejected_at timestamptz,
+  rejected_by_id uuid references profiles (id) on delete set null,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
   constraint authorizations_date_range_check check (end_date >= start_date),

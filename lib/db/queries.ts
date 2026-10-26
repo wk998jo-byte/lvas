@@ -57,6 +57,7 @@ export type AuthorizationDetailRow = Authorization & {
   employees: RequesterEmployeeRef;
   approver: Pick<Profile, "full_name" | "email" | "department"> | null;
   first_approver: Pick<Profile, "full_name" | "email"> | null;
+  rejected_by: Pick<Profile, "full_name" | "email"> | null;
 };
 
 const AUTHORIZATION_LIST_SELECT = `
@@ -715,7 +716,7 @@ export async function getAuthorizationById(id: string): Promise<Authorization | 
              approver_id, status, start_date::text as start_date, end_date::text as end_date,
              duration_label, usage_after::text as usage_after, purpose, rejection_reason,
              location, justification, approval_stage, first_approver_id, first_approved_at,
-             approved_at, rejected_at, created_at, updated_at
+             approved_at, rejected_at, rejected_by_id, created_at, updated_at
       from authorizations
       where id = $1
     `,
@@ -869,7 +870,7 @@ export async function getAuthorizationDetail(
         a.end_date::text as end_date, a.duration_label, a.usage_after::text as usage_after,
         a.purpose, a.rejection_reason, a.location, a.justification, a.approval_stage,
         a.first_approver_id, a.first_approved_at, a.approved_at, a.rejected_at,
-        a.created_at, a.updated_at,
+        a.rejected_by_id, a.created_at, a.updated_at,
         case when v.id is null then null else jsonb_build_object(
           'id', v.id, 'door_number', v.door_number, 'plate_number', v.plate_number, 'make', v.make,
           'model', v.model, 'year', v.year, 'color', v.color
@@ -885,13 +886,17 @@ export async function getAuthorizationDetail(
         ) end as approver,
         case when fp.id is null then null else jsonb_build_object(
           'full_name', fp.full_name, 'email', fp.email
-        ) end as first_approver
+        ) end as first_approver,
+        case when rb.id is null then null else jsonb_build_object(
+          'full_name', rb.full_name, 'email', rb.email
+        ) end as rejected_by
       from authorizations a
       left join vehicles v on v.id = a.vehicle_id
       left join profiles p on p.id = a.requester_id
       left join employees e on e.id = a.employee_id
       left join profiles ap on ap.id = a.approver_id
       left join profiles fp on fp.id = a.first_approver_id
+      left join profiles rb on rb.id = a.rejected_by_id
       where a.id = $1
         ${locationSql}
     `,
@@ -1302,7 +1307,8 @@ export async function rejectPendingAuthorization(input: {
       set status = 'rejected',
           rejected_at = $3,
           approved_at = null,
-          rejection_reason = $4
+          rejection_reason = $4,
+          rejected_by_id = $2
       where id = $1
         and status = 'pending'
         and approval_stage = $5
@@ -1312,7 +1318,7 @@ export async function rejectPendingAuthorization(input: {
         approver_id, status, start_date::text as start_date, end_date::text as end_date,
         duration_label, usage_after::text as usage_after, purpose, rejection_reason,
         location, justification, approval_stage, first_approver_id, first_approved_at,
-        approved_at, rejected_at, created_at, updated_at
+        approved_at, rejected_at, rejected_by_id, created_at, updated_at
     `,
     [
       input.id,

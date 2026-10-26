@@ -56,6 +56,10 @@ export type AuthorizationDetailData = Authorization & {
     | Pick<Profile, "full_name" | "email">
     | Pick<Profile, "full_name" | "email">[]
     | null;
+  rejected_by?:
+    | Pick<Profile, "full_name" | "email">
+    | Pick<Profile, "full_name" | "email">[]
+    | null;
 };
 
 function one<T>(value: T | T[] | null | undefined): T | null {
@@ -173,6 +177,7 @@ export function AuthorizationDetailView({
   });
   const approver = one(request.approver);
   const firstApprover = one(request.first_approver);
+  const rejectedBy = one(request.rejected_by);
   const usage = formatUsageAfter(request.usage_after);
   const plate = vehicle
     ? `${vehicle.door_number ? `Door ${vehicle.door_number} · ` : ""}${plateLabel(vehicle)}`
@@ -380,12 +385,20 @@ export function AuthorizationDetailView({
               ) : null}
             </DetailRow>
             <DetailRow icon={<UserRound className="size-4" />} label={decisionActorLabel(request)}>
-              {approver?.full_name?.trim() || (request.approver_id ? "—" : "Unassigned")}
-              {approver?.email ? (
-                <span className="mt-0.5 block text-xs font-normal text-slate-500">
-                  {approver.email}
-                </span>
-              ) : null}
+              {request.status === "rejected"
+                ? (rejectedBy?.full_name?.trim() || "—")
+                : (approver?.full_name?.trim() || (request.approver_id ? "—" : "Unassigned"))}
+              {request.status === "rejected"
+                ? rejectedBy?.email ? (
+                    <span className="mt-0.5 block text-xs font-normal text-slate-500">
+                      {rejectedBy.email}
+                    </span>
+                  ) : null
+                : approver?.email ? (
+                    <span className="mt-0.5 block text-xs font-normal text-slate-500">
+                      {approver.email}
+                    </span>
+                  ) : null}
             </DetailRow>
             <DetailRow
               icon={<CalendarDays className="size-4" />}

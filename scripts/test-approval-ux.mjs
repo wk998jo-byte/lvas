@@ -160,7 +160,7 @@ try {
       approver_id uuid,status text,start_date date,end_date date,duration_label text,usage_after time,
       purpose text,rejection_reason text,location text,justification text,approval_stage integer,
       first_approver_id uuid,first_approved_at timestamptz,approved_at timestamptz,rejected_at timestamptz,
-      created_at timestamptz,updated_at timestamptz);
+      rejected_by_id uuid,created_at timestamptz,updated_at timestamptz);
   `);
   await db.query(`insert into profiles values
     ($1,'Logistics Test Actor','internal-logistics@example.invalid',null,'logistics_approver',true),
@@ -240,15 +240,23 @@ try {
     assert.equal(result.data.status, "rejected");
     assert.equal(result.data.approval_stage, stage);
     assert.equal(result.data.approver_id, adminId);
+    assert.equal(result.data.rejected_by_id, stage === 1 ? logId : adminId);
+    assert.equal(result.data.first_approver_id, stage === 1 ? null : logId);
+    if (stage === 1) assert.equal(result.data.first_approved_at, null);
     assert.ok(result.data.rejected_at);
     const detail = await staffDetail(rejectId);
     const label = stage === 1 ? "Rejected by Logistics" : "Rejected by Final Approver";
     assert.match(detail, new RegExp(label));
     assert.match(detail, /Synthetic rejection reason/);
     assert.equal(decisionButtons(detail).length, 0);
-    if (stage === 1) assert.doesNotMatch(detail, />Final approver</);
-    else assert.match(detail, /Logistics Test Actor/);
-    assert.match(detail, stage === 1 ? /Logistics Test Actor/ : /Final Test Actor/);
+    if (stage === 1) {
+      assert.doesNotMatch(detail, />Final approver</);
+      assert.match(detail, /Logistics Test Actor/);
+      assert.doesNotMatch(detail, /Final Test Actor/);
+    } else {
+      assert.match(detail, /Logistics Test Actor/);
+      assert.match(detail, /Final Test Actor/);
+    }
     for (const markup of [await publicTrack(result.data.public_token), employeeStatus(result.data)]) {
       assert.match(markup, new RegExp(label));
       assert.match(markup, /Synthetic rejection reason/);
@@ -261,8 +269,9 @@ try {
   await db.query("update authorizations set status='rejected',rejection_reason='Historical reason',rejected_at=now() where id=$1", [outside]);
   role = "admin";
   const legacyHtml = await staffDetail(outside);
-  assert.doesNotMatch(legacyHtml, /Logistics Test Actor|Muteb/);
+  assert.doesNotMatch(legacyHtml, /Logistics Test Actor|Muteb|Final Test Actor/);
   assert.match(legacyHtml, /Historical reason/);
+  assert.match(legacyHtml, /Rejected by Final Approver/);
   for (const [actor, stage, decision] of [
     ["logistics_approver", 1, "approve"], ["admin", 2, "approve"],
     ["logistics_approver", 1, "reject"], ["admin", 2, "reject"],

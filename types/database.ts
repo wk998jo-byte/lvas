@@ -80,6 +80,7 @@ export type Authorization = {
   first_approved_at: string | null;
   approved_at: string | null;
   rejected_at: string | null;
+  rejected_by_id: string | null;
   created_at: string;
   updated_at: string;
 };
