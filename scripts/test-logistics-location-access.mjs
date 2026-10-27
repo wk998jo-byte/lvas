@@ -154,7 +154,7 @@ for (const location of [retiredFabshop, retiredDepartment, "*", "asset departmen
 }
 assert.ok(source("components/public/public-request-form.tsx").includes("PROJECT_LOCATIONS.map("));
 const sharedNewLocations = [
-  "Transport", "PCD", "Procurement", "HR",
+  "PCD", "Procurement", "HR",
   "Finance", "Warehouse", "SCC", "Safety",
 ];
 const targets = {
@@ -171,7 +171,7 @@ const targets = {
   "81732": ["Yanbu"],
   "8974": ["Central Workshop"],
   "8701": ["RMD Salasil Workshop"],
-  "11124": ["Rigmove"],
+  "11124": ["Rigmove", "Transport"],
   "1685": ["Rental"],
 };
 for (const [badge, expected] of Object.entries(targets)) {
@@ -196,7 +196,7 @@ for (const location of fourLocations) {
 for (const location of addedLocations) {
   assert.equal(
     team.LOGISTICS_ROSTER.filter(person => person.locations.includes(location)).length,
-    2,
+    location === "Transport" ? 1 : 2,
   );
 }
 assert.ok(team.LOGISTICS_ROSTER.every(person => person.locations.every(location => locations.includes(location))));
@@ -291,4 +291,4 @@ assert.ok(!JSON.stringify(await history()).includes("PRIVATE DATABASE"));
 assert.ok(!JSON.stringify(await detail({ params: Promise.resolve({ id: jafurahRow.id }) })).includes("PRIVATE DATABASE"));
 assert.ok(!source("app/(dashboard)/history/page.tsx").includes("error.message"));
 assert.ok(!source("app/(dashboard)/history/[id]/page.tsx").includes("error.message"));
-console.log("logistics-location-access: PASS (exact 21 locations, Noorah retired, Haroon Facility, Waqar/Anees shared new-site scope, request validation/dropdown, queries, pages, legacy denial, overlap redaction)");
+console.log("logistics-location-access: PASS (exact 21 locations, Noorah retired, Haroon Facility, Transport with Khalil and seven shared Waqar/Anees sites, request validation/dropdown, queries, pages, legacy denial, overlap redaction)");

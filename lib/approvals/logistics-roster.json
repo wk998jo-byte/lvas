@@ -15,7 +15,6 @@
     "position": "Logistic Coordinator",
     "locations": [
       "Dhahran Base",
-      "Transport",
       "PCD",
       "Procurement",
       "HR",
@@ -32,7 +31,6 @@
     "position": "Equipment Coordinator",
     "locations": [
       "Dhahran Base",
-      "Transport",
       "PCD",
       "Procurement",
       "HR",
@@ -138,7 +136,8 @@
     "badge": "11124",
     "position": "Rig Move Operation Manager",
     "locations": [
-      "Rigmove"
+      "Rigmove",
+      "Transport"
     ]
   },
   {

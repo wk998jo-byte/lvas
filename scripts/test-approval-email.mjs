@@ -105,7 +105,7 @@ async function reset() {
       name!=="inactive",
     ]);
   }
-  const sharedAdded = ["Transport","PCD","Procurement","HR","Finance","Warehouse","SCC","Safety"];
+  const sharedAdded = ["PCD","Procurement","HR","Finance","Warehouse","SCC","Safety"];
   for (const [name,locations] of Object.entries({
     ejaz:["Dhahran Base", ...sharedAdded],
     waqar:["Dhahran Base", ...sharedAdded],
@@ -116,7 +116,7 @@ async function reset() {
     invalid:["Facility"],
     ashwin:["Central Workshop"],
     ninju:["RMD Salasil Workshop"],
-    khalil:["Rigmove"],
+    khalil:["Rigmove","Transport"],
     anwin:["Rental"],
   })) {
     for (const location of locations) await pool.query(
@@ -202,21 +202,26 @@ try {
     await submit("Central Workshop");
     assert.deepEqual(attempts.map(m=>m.to),["waqar@example.invalid"]);
   });
-  await test("Eight added locations notify Waqar and Anees; Transport final routes to Abdullah",async()=>{
+  await test("Transport notifies Khalil; seven added locations notify Waqar and Anees; final routing remains correct",async()=>{
     for (const location of ["Transport","PCD","Procurement","HR","Finance","Warehouse","SCC","Safety"]) {
       await reset();
       attempts.length=0;
 
       const id=await submit(location);
 
+      const expectedLogistics =
+        location === "Transport"
+          ? ["khalil@example.invalid"]
+          : ["ejaz@example.invalid","waqar@example.invalid"];
+
       assert.deepEqual(
         attempts.map(m=>m.to).sort(),
-        ["ejaz@example.invalid","waqar@example.invalid"],
+        expectedLogistics,
         location,
       );
 
       attempts.length=0;
-      actor=ids.ejaz;
+      actor = location === "Transport" ? ids.khalil : ids.ejaz;
 
       const approved=await approvals.approveAuthorization({id});
       assert.equal(approved.ok,true,location);
