@@ -1,0 +1,48 @@
+modules = ["nodejs-24", "python-3.11", "postgresql-16"]
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start LVAS"
+
+[[workflows.workflow]]
+name = "Start LVAS"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd /home/runner/workspace/lvas-main && PORT=5000 npm start"
+waitForPort = 5000
+
+[[ports]]
+localPort = 3001
+externalPort = 3001
+
+[[ports]]
+localPort = 3100
+externalPort = 3000
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[nix]
+channel = "stable-25_05"
+
+[objectStorage]
+defaultBucketID = "replit-objstore-ab65837d-daab-4308-8535-0265ddda4db2"
+
+[deployment]
+deploymentTarget = "autoscale"
+build = "cd /home/runner/workspace/lvas-main && npm ci && npm run build"
+run = "cd /home/runner/workspace/lvas-main && npm start"
