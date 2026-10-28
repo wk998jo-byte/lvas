@@ -3,6 +3,7 @@ import {
   countPendingForReview,
   listLocationsForApprover,
 } from "@/lib/db/queries";
+import { getI18n } from "@/lib/i18n/server";
 import { AppShell } from "@/components/layout/app-shell";
 
 export const dynamic = "force-dynamic";
@@ -20,9 +21,10 @@ export default async function DashboardLayout({
           locations: await listLocationsForApprover(profile.id),
         })
       : await countPendingForReview({ stage: 2, approverId: profile.id });
+  const { t } = await getI18n();
 
   return (
-    <AppShell profile={profile} pendingCount={pendingCount}>
+    <AppShell profile={profile} pendingCount={pendingCount} labels={t.shell}>
       {children}
     </AppShell>
   );

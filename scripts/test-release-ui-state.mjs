@@ -1,6 +1,6 @@
 // Actual release-cleanup components with deterministic hook state; no HTTP/DB/email.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import vm from "node:vm";
@@ -44,7 +44,17 @@ function harness(file, exportName, props) {
       if (name === "@/components/vehicles/plate-label") return load("components/vehicles/plate-label.tsx");
       if (name.startsWith("@/components/")) return new Proxy({}, { get: (_obj, key) => stub(String(key)) });
       if (name.startsWith("@/actions/")) return {};
-      if (name.startsWith("@/")) return load(name.slice(2) + ".ts");
+      if (name === "@/lib/i18n/client") return {
+        useI18n: () => ({
+          locale: "en", dir: "ltr", intl: "en-GB", tm: message => message,
+          t: load("lib/i18n/dictionaries/index.ts").getDictionary("en"),
+        }),
+      };
+      if (name.startsWith("@/")) {
+        const stem = name.slice(2);
+        return load([stem + ".ts", stem + ".tsx", stem + "/index.ts"]
+          .find(candidate => existsSync(path.join(root, candidate))) ?? stem + ".ts");
+      }
       return nativeRequire(name);
     };
     vm.runInNewContext(ts.transpileModule(readFileSync(path.join(root, relative), "utf8"), {

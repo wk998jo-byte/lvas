@@ -3,12 +3,15 @@ import { History } from "lucide-react";
 import { isEffectivelyApproved } from "@/lib/authorizations/effective-status";
 import { requireRole } from "@/lib/auth/guards";
 import { listHistoryAuthorizations, listLocationsForApprover } from "@/lib/db/queries";
+import { getI18n } from "@/lib/i18n/server";
 import { ApprovalsTable } from "@/components/approvals/approvals-table";
 
 export const dynamic = "force-dynamic";
 
 export default async function RequestsHistoryPage() {
   const profile = await requireRole(["admin", "logistics_approver"]);
+  const { t } = await getI18n();
+  const copy = t.approvals.historyPage;
 
   let requests;
   try {
@@ -24,10 +27,10 @@ export default async function RequestsHistoryPage() {
     return (
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">
-          Requests history
+          {copy.title}
         </h1>
         <p className="text-sm text-destructive" role="alert">
-          Unable to load history. Please try again later.
+          {copy.loadError}
         </p>
       </div>
     );
@@ -48,20 +51,19 @@ export default async function RequestsHistoryPage() {
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-[#e30613] uppercase">
               <History className="size-3.5" />
-              Decided requests
+              {copy.eyebrow}
             </div>
             <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-              Requests history
+              {copy.title}
             </h1>
             <p className="max-w-xl text-sm text-slate-500 md:text-base">
-              Every request that has been approved, rejected, cancelled, or has
-              expired. Pending requests stay on the dashboard.
+              {copy.description}
             </p>
           </div>
 
           <div className="rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 shadow-sm">
             <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-400 uppercase">
-              Approved
+              {copy.approvedStat}
             </p>
             <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">
               {approved}

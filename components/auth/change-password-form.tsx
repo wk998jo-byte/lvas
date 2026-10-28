@@ -7,8 +7,11 @@ import { changePassword } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useI18n } from "@/lib/i18n/client";
 
 export function ChangePasswordForm() {
+  const { t, tm } = useI18n();
+  const copy = t.auth.change;
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -25,13 +28,13 @@ export function ChangePasswordForm() {
         confirm_password: confirmPassword,
       });
       if (!result.ok) {
-        setError(result.error);
+        setError(tm(result.error));
         return;
       }
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      toast.success("Password updated");
+      toast.success(copy.success);
     });
   }
 
@@ -41,10 +44,11 @@ export function ChangePasswordForm() {
       onSubmit={onSubmit}
     >
       <div className="space-y-2">
-        <Label htmlFor="current_password">Current password</Label>
+        <Label htmlFor="current_password">{copy.currentPassword}</Label>
         <Input
           id="current_password"
           type="password"
+          dir="ltr"
           autoComplete="current-password"
           required
           value={currentPassword}
@@ -54,10 +58,11 @@ export function ChangePasswordForm() {
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="new_password">New password</Label>
+        <Label htmlFor="new_password">{copy.newPassword}</Label>
         <Input
           id="new_password"
           type="password"
+          dir="ltr"
           autoComplete="new-password"
           required
           minLength={8}
@@ -68,10 +73,11 @@ export function ChangePasswordForm() {
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="confirm_password">Confirm new password</Label>
+        <Label htmlFor="confirm_password">{copy.confirmPassword}</Label>
         <Input
           id="confirm_password"
           type="password"
+          dir="ltr"
           autoComplete="new-password"
           required
           minLength={8}
@@ -81,7 +87,7 @@ export function ChangePasswordForm() {
           onChange={(event) => setConfirmPassword(event.target.value)}
         />
       </div>
-      <p className="text-xs text-slate-500">Use at least 8 characters.</p>
+      <p className="text-xs text-slate-500">{copy.hint}</p>
       {error ? (
         <p
           className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
@@ -91,7 +97,7 @@ export function ChangePasswordForm() {
         </p>
       ) : null}
       <Button type="submit" className="h-11 rounded-full" disabled={pending}>
-        {pending ? "Saving…" : "Update password"}
+        {pending ? copy.submitting : copy.submit}
       </Button>
     </form>
   );

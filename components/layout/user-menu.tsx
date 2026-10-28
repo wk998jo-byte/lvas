@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { signOut } from "@/actions/auth";
 import { roleLabel } from "@/lib/auth/roles";
+import { useI18n } from "@/lib/i18n/client";
 import type { Profile } from "@/types/database";
 
 function initials(profile: Profile): string {
@@ -20,6 +21,8 @@ function initials(profile: Profile): string {
 }
 
 export function UserMenu({ profile }: { profile: Profile }) {
+  const { t, tm, locale } = useI18n();
+  const copy = t.shell.userMenu;
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -55,7 +58,7 @@ export function UserMenu({ profile }: { profile: Profile }) {
     <div ref={rootRef} className="relative">
       <button
         type="button"
-        className="inline-flex h-9 items-center gap-2 rounded-full border border-slate-200/80 bg-white/80 px-1.5 pr-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-white"
+        className="inline-flex h-9 items-center gap-2 rounded-full border border-slate-200/80 bg-white/80 px-1.5 pe-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-white"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={panelId}
@@ -73,18 +76,18 @@ export function UserMenu({ profile }: { profile: Profile }) {
         <div
           id={panelId}
           role="menu"
-          aria-label="Account menu"
-          className="absolute top-full right-0 z-50 mt-2 min-w-56 rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+          aria-label={copy.accountMenu}
+          className="absolute top-full end-0 z-50 mt-2 min-w-56 rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
         >
           <div className="space-y-0.5 px-1.5 py-1">
             <p className="truncate text-sm font-medium text-foreground">
-              {profile.full_name || "User"}
+              {profile.full_name || copy.userFallback}
             </p>
             <p className="truncate text-xs font-normal text-muted-foreground">
               {profile.email}
             </p>
             <p className="text-xs font-normal text-muted-foreground">
-              {roleLabel(profile.role)}
+              {roleLabel(profile.role, locale)}
             </p>
           </div>
           <div className="-mx-1 my-1 h-px bg-border" />
@@ -95,7 +98,7 @@ export function UserMenu({ profile }: { profile: Profile }) {
             onClick={() => setOpen(false)}
           >
             <KeyRound className="size-4" />
-            Change password
+            {copy.changePassword}
           </Link>
           <button
             type="button"
@@ -106,7 +109,7 @@ export function UserMenu({ profile }: { profile: Profile }) {
               startTransition(async () => {
                 const result = await signOut();
                 if (!result.ok) {
-                  toast.error(result.error);
+                  toast.error(tm(result.error));
                   return;
                 }
                 setOpen(false);
@@ -116,7 +119,7 @@ export function UserMenu({ profile }: { profile: Profile }) {
             }}
           >
             <LogOut className="size-4" />
-            {pending ? "Signing out…" : "Sign out"}
+            {pending ? copy.signingOut : copy.signOut}
           </button>
         </div>
       ) : null}

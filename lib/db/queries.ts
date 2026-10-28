@@ -277,6 +277,7 @@ export type BadgeAuthorizationRow = {
   start_date: string;
   end_date: string;
   duration_label: string;
+  usage_after: string;
   purpose: string | null;
   rejection_reason: string | null;
   location: string | null;
@@ -300,6 +301,7 @@ export async function listAuthorizationsByEmployeeId(
         a.start_date::text as start_date,
         a.end_date::text as end_date,
         a.duration_label,
+        a.usage_after::text as usage_after,
         a.purpose,
         a.rejection_reason,
         a.location,
@@ -773,6 +775,7 @@ export type ApprovalEmailContext = {
   location: string | null;
   start_date: string;
   end_date: string;
+  usage_after: string;
   purpose: string | null;
   logistics_approver_name: string | null;
   first_approved_at: string | null;
@@ -782,7 +785,7 @@ export async function getApprovalEmailContext(id: string): Promise<ApprovalEmail
   return queryOne<ApprovalEmailContext>(
     `select coalesce(e.full_name,p.full_name) as requester_name,e.badge,
        v.door_number,v.make,v.model,a.location,
-       a.start_date::text,a.end_date::text,
+       a.start_date::text,a.end_date::text,a.usage_after::text as usage_after,
        coalesce(a.justification,a.purpose) as purpose,
        fp.full_name as logistics_approver_name,a.first_approved_at
      from authorizations a
@@ -841,7 +844,8 @@ export async function getExpiryEmailContext(input: {
     `select p.email as recipient_email,a.status,
        coalesce(e.full_name,r.full_name) as requester_name,e.badge,
        v.door_number,v.make,v.model,a.location,
-       a.start_date::text,a.end_date::text,coalesce(a.justification,a.purpose) as purpose
+       a.start_date::text,a.end_date::text,a.usage_after::text as usage_after,
+       coalesce(a.justification,a.purpose) as purpose
      from authorizations a
      join profiles p on p.id=$2 and p.is_active=true and p.role='logistics_approver'
      left join employees e on e.id=a.employee_id

@@ -25,11 +25,11 @@ export function AmbientBackdrop({
       />
       <div
         className={cn(
-          "absolute -bottom-24 -left-20 h-[26rem] w-[26rem] rounded-full bg-[radial-gradient(circle,rgba(227,6,19,0.08),transparent_65%)] blur-3xl",
+          "absolute -bottom-24 -start-20 h-[26rem] w-[26rem] rounded-full bg-[radial-gradient(circle,rgba(227,6,19,0.08),transparent_65%)] blur-3xl",
           strong && "animate-ambient-delayed",
         )}
       />
-      <div className="absolute top-1/4 -right-20 h-[20rem] w-[20rem] rounded-full bg-[radial-gradient(circle,rgba(148,163,184,0.14),transparent_70%)] blur-3xl" />
+      <div className="absolute top-1/4 -end-20 h-[20rem] w-[20rem] rounded-full bg-[radial-gradient(circle,rgba(148,163,184,0.14),transparent_70%)] blur-3xl" />
       <div
         className="absolute inset-0 opacity-40"
         style={{

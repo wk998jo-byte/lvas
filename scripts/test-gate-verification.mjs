@@ -190,6 +190,14 @@ try {
   assert.equal((await verify()).details.badge, null);
   await client.query("update pg_temp.authorizations set employee_id=$1, requester_id=null, usage_after='18:00'", [employeeId]);
   assert.equal((await verify()).state, "invalid");
+  await client.query("update pg_temp.authorizations set usage_after='21:00'");
+  assert.equal((await verify()).state, "not_yet_valid", "extended-time pass is not valid at 19:00");
+  assert.match((await verify()).reason, /after 21:00/);
+  now = "2026-10-06T18:00:00.000Z";
+  const extended = await verify();
+  assert.equal(extended.state, "valid", "extended-time pass is valid from 21:00 Saudi time");
+  assert.equal(extended.details.usageAfter, "21:00");
+  now = "2026-10-06T16:00:00.000Z";
   await client.query("update pg_temp.authorizations set usage_after='19:00'");
   assert.equal(invalidLimitCalls, 0, "all known passes bypass invalid-token throttling");
   assert.equal(evaluateGateAuthorization({ ...valid, status: "approved", start_date: "2026-02-30", end_date: "2026-10-06" }).state, "invalid");

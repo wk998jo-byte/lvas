@@ -2,6 +2,7 @@ import { UsersRound } from "lucide-react";
 
 import { requireRole } from "@/lib/auth/guards";
 import { countEmployees, listEmployeesPage } from "@/lib/db/queries";
+import { getI18n } from "@/lib/i18n/server";
 import {
   EmployeesBrowser,
   type EmployeeFilter,
@@ -27,6 +28,8 @@ export default async function AdminEmployeesPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requireRole("admin");
+  const { t, tm, intl } = await getI18n();
+  const copy = t.employees.page;
 
   const params = await searchParams;
   const single = (key: string) => {
@@ -81,15 +84,15 @@ export default async function AdminEmployeesPage({
       limit: pageSize,
     });
   } catch (error) {
-    errorMessage = error instanceof Error ? error.message : "Unknown error";
+    errorMessage = error instanceof Error ? tm(error.message) : copy.unknownError;
   }
 
   if (errorMessage) {
     return (
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Employees</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{copy.title}</h1>
         <p className="text-sm text-destructive" role="alert">
-          Failed to load employees: {errorMessage}
+          {copy.loadFailed(errorMessage)}
         </p>
       </div>
     );
@@ -104,36 +107,35 @@ export default async function AdminEmployeesPage({
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -top-20 right-8 size-40 rounded-full bg-[#e30613]/10 blur-3xl"
+          className="pointer-events-none absolute -top-20 end-8 size-40 rounded-full bg-[#e30613]/10 blur-3xl"
         />
 
         <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-[#e30613] uppercase">
               <UsersRound className="size-3.5" />
-              HR directory
+              {copy.hrDirectory}
             </div>
             <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-              Employees
+              {copy.title}
             </h1>
             <p className="max-w-xl text-sm text-slate-500 md:text-base">
-              Imported from the HR master sheet. These records are a reference
-              directory — they are not login accounts.
+              {copy.description}
             </p>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div className="rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 shadow-sm">
               <p className="text-[11px] font-semibold tracking-[0.14em] text-slate-400 uppercase">
-                Total
+                {copy.total}
               </p>
               <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">
-                {(allCount).toLocaleString()}
+                {allCount.toLocaleString(intl)}
               </p>
             </div>
             <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 px-4 py-3 shadow-sm">
               <p className="text-[11px] font-semibold tracking-[0.14em] text-indigo-500/80 uppercase">
-                Managers
+                {copy.managers}
               </p>
               <p className="mt-1 text-2xl font-semibold tabular-nums text-indigo-700">
                 {managerCount}
@@ -141,7 +143,7 @@ export default async function AdminEmployeesPage({
             </div>
             <div className="rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-3 shadow-sm">
               <p className="text-[11px] font-semibold tracking-[0.14em] text-sky-500/80 uppercase">
-                Supervisors
+                {copy.supervisors}
               </p>
               <p className="mt-1 text-2xl font-semibold tabular-nums text-sky-700">
                 {supervisorCount}

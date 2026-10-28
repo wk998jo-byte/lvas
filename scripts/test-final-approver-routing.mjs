@@ -14,6 +14,24 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const nativeRequire = createRequire(import.meta.url);
 const source = (file) => readFileSync(path.join(root, file), "utf8");
 
+const i18nCache = new Map();
+function loadI18n(name) {
+  const stem = name.slice(2);
+  const file = [stem + ".ts", stem + "/index.ts"].find((p) => existsSync(path.join(root, p)));
+  assert.ok(file, name);
+  if (i18nCache.has(file)) return i18nCache.get(file);
+  const loaded = { exports: {} };
+  i18nCache.set(file, loaded.exports);
+  vm.runInNewContext(
+    ts.transpileModule(source(file), {
+      fileName: file,
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+    }).outputText,
+    { module: loaded, exports: loaded.exports, require: (dep) => (dep.startsWith("@/lib/i18n/") ? loadI18n(dep) : nativeRequire(dep)) },
+  );
+  return loaded.exports;
+}
+
 const team = (() => {
   const loaded = { exports: {} };
   vm.runInNewContext(
@@ -28,6 +46,7 @@ const team = (() => {
         if (name === "@/lib/approvals/logistics-roster.json") {
           return JSON.parse(source("lib/approvals/logistics-roster.json"));
         }
+        if (name.startsWith("@/lib/i18n/")) return loadI18n(name);
         return nativeRequire(name);
       },
     },

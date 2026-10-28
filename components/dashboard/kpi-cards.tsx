@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { getI18n } from "@/lib/i18n/server";
 import { cn } from "@/lib/utils";
 import type { DashboardKpis } from "@/lib/dashboard/stats";
 
@@ -27,43 +28,45 @@ const ICON_TONES = {
   red: "border-red-200 bg-red-50 text-[#e30613]",
 } as const;
 
-export function KpiCards({
+export async function KpiCards({
   stats,
-  pendingLabel = "Pending approvals",
+  pendingLabel,
 }: KpiCardsProps) {
+  const { t } = await getI18n();
+  const copy = t.dashboard.kpi;
   const items = [
     {
       key: "active",
-      label: "Total active authorizations",
+      label: copy.active,
       value: stats.activeAuthorizations,
-      description: "Approved and currently valid",
+      description: copy.activeDesc,
       icon: CheckCircle2,
       tone: "green" as const,
       pulse: false,
     },
     {
       key: "pending",
-      label: pendingLabel,
+      label: pendingLabel ?? copy.pending,
       value: stats.pendingApprovals,
-      description: "Awaiting decision",
+      description: copy.pendingDesc,
       icon: ClipboardList,
       tone: "amber" as const,
       pulse: stats.pendingApprovals > 0,
     },
     {
       key: "expiring",
-      label: "Expiring within 7 days",
+      label: copy.expiring,
       value: stats.expiringWithin7Days,
-      description: "Needs renewal attention",
+      description: copy.expiringDesc,
       icon: AlertTriangle,
       tone: "rose" as const,
       pulse: false,
     },
     {
       key: "fleet",
-      label: "Total fleet vehicles",
+      label: copy.fleet,
       value: stats.fleetVehicles,
-      description: "Active in directory",
+      description: copy.fleetDesc,
       icon: Car,
       tone: "red" as const,
       pulse: false,
@@ -82,7 +85,7 @@ export function KpiCards({
             />
             <CardHeader className="flex flex-row items-start justify-between gap-3 pb-2">
               <div className="space-y-1">
-                <CardDescription className="text-[11px] font-semibold tracking-[0.16em] text-slate-500 uppercase">
+                <CardDescription className="text-[11px] font-semibold tracking-[0.16em] text-slate-500 uppercase rtl:tracking-normal">
                   {item.label}
                 </CardDescription>
                 <CardTitle className="flex items-center gap-2 text-3xl font-semibold tabular-nums text-slate-900">

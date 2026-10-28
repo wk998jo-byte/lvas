@@ -1,3 +1,5 @@
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/config";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 import type { UserRole } from "@/types/database";
 
 export const ROLES = {
@@ -36,20 +38,9 @@ export function isRequesterRole(role: UserRole | null | undefined): boolean {
   return hasRole(role, REQUESTER_ROLES);
 }
 
-export function roleLabel(role: UserRole): string {
-  switch (role) {
-    case "admin":
-      return "Admin";
-    case "manager_requester":
-      return "Manager Requester";
-    case "supervisor_requester":
-      return "Supervisor Requester";
-    case "logistics_approver":
-      return "Logistics approver";
-    case "other_employee":
-    default:
-      return "Other Employee";
-  }
+export function roleLabel(role: UserRole, locale: Locale = DEFAULT_LOCALE): string {
+  const { roles } = getDictionary(locale).common;
+  return roles[role] ?? roles.other_employee;
 }
 
 /** Public route anyone can use to raise a request without signing in. */

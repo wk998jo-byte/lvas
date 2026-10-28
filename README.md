@@ -31,6 +31,8 @@ The live databases already contain business data. Do **not** re-import the backu
 4. Do **not** run `npm run db:import`.
 5. Do **not** run `npm run db:bootstrap-admin`.
 
+Before deploying the extended-time request option, apply `db/migrations/20261028_extended_usage_time.sql` to the existing database. Without it, any request that answers "Yes" to extended time is rejected by the old 19:00-only check.
+
 Do not commit JSON backups or employee exports.
 
 ## Environment

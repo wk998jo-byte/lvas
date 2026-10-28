@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/card";
 import type { AuthorizationDetailData } from "@/components/authorizations/authorization-detail";
 import { isEffectivelyApproved } from "@/lib/authorizations/effective-status";
+import { isExtendedUsageAfter } from "@/lib/business-date";
+import { useI18n } from "@/lib/i18n/client";
 import { plateLabel } from "@/components/vehicles/plate-label";
 
 function one<T>(value: T | T[] | null | undefined): T | null {
@@ -30,6 +32,8 @@ export function DigitalAuthorizationPass({
   request: AuthorizationDetailData;
   verificationUrl: string | null;
 }) {
+  const { t } = useI18n();
+  const copy = t.approvals.pass;
   const passRef = useRef<HTMLDivElement>(null);
   const vehicle = one(request.vehicles);
   const requester = resolveRequester({
@@ -37,7 +41,7 @@ export function DigitalAuthorizationPass({
     employee: request.employees,
     contactMobile: request.contact_mobile,
   });
-  const plate = vehicle ? plateLabel(vehicle) : "Plate unavailable";
+  const plate = vehicle ? plateLabel(vehicle) : copy.plateUnavailable;
   const driver = requester.name;
 
   if (!isEffectivelyApproved(request.status, request.end_date)) return null;
@@ -49,16 +53,14 @@ export function DigitalAuthorizationPass({
   return (
     <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-background">
       <CardHeader className="border-b no-print">
-        <CardTitle className="text-base">Digital Authorization Pass</CardTitle>
-        <CardDescription>
-          Printable gate pass with QR verification for security screening.
-        </CardDescription>
+        <CardTitle className="text-base">{copy.title}</CardTitle>
+        <CardDescription>{copy.description}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 pt-4">
         <div className="flex flex-wrap gap-2 no-print">
           <Button type="button" onClick={printPass}>
             <Printer className="size-3.5" />
-            Print pass
+            {copy.print}
           </Button>
           <Button
             type="button"
@@ -68,7 +70,7 @@ export function DigitalAuthorizationPass({
             }}
           >
             <Download className="size-3.5" />
-            Download / Save as PDF
+            {copy.download}
           </Button>
         </div>
 
@@ -79,11 +81,11 @@ export function DigitalAuthorizationPass({
         >
           <div className="flex items-center justify-between gap-3 bg-black px-4 py-3 text-white">
             <BrandLogo variant="compact" tone="light" />
-            <div className="text-right">
+            <div className="text-end">
               <p className="text-[10px] tracking-[0.2em] text-white/60 uppercase">
-                Gate authorization
+                {copy.gateAuthorization}
               </p>
-              <p className="text-sm font-semibold text-[#e30613]">APPROVED</p>
+              <p className="text-sm font-semibold text-[#e30613]">{copy.approved}</p>
             </div>
           </div>
 
@@ -91,7 +93,7 @@ export function DigitalAuthorizationPass({
             <div className="space-y-3 text-sm">
               <div>
                 <p className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">
-                  Driver / requester
+                  {copy.driver}
                 </p>
                 <p className="text-base font-semibold">{driver}</p>
                 {requester.department ? (
@@ -101,19 +103,19 @@ export function DigitalAuthorizationPass({
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <p className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">
-                    Door number
+                    {copy.doorNumber}
                   </p>
-                  <p className="font-semibold">{vehicle?.door_number ?? "Unavailable"}</p>
+                  <p className="font-semibold">{vehicle?.door_number ?? copy.unavailable}</p>
                 </div>
                 <div>
                   <p className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">
-                    Vehicle plate
+                    {copy.vehiclePlate}
                   </p>
                   <p className="font-semibold">{plate}</p>
                 </div>
                 <div>
                   <p className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">
-                    Vehicle
+                    {copy.vehicle}
                   </p>
                   <p className="font-semibold">
                     {vehicle
@@ -123,31 +125,34 @@ export function DigitalAuthorizationPass({
                 </div>
                 <div>
                   <p className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">
-                    Valid from
+                    {copy.validFrom}
                   </p>
-                  <p className="font-semibold">{request.start_date}</p>
+                  <p className="font-semibold" dir="ltr">{request.start_date}</p>
                 </div>
                 <div>
                   <p className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">
-                    Expires
+                    {copy.expires}
                   </p>
-                  <p className="font-semibold text-[#C8102E]">
+                  <p className="font-semibold text-[#C8102E]" dir="ltr">
                     {request.end_date}
                   </p>
                 </div>
                 <div>
                   <p className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">
-                    Usage after
+                    {t.common.extendedTime.usageAfter}
                   </p>
                   <p className="font-semibold">
                     {typeof request.usage_after === "string"
                       ? request.usage_after.slice(0, 5)
                       : request.usage_after}
+                    {isExtendedUsageAfter(request.usage_after)
+                      ? ` · ${t.common.extendedTime.badge}`
+                      : null}
                   </p>
                 </div>
                 <div>
                   <p className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">
-                    Authorization ID
+                    {copy.authorizationId}
                   </p>
                   <p className="font-mono text-xs break-all">{request.id}</p>
                 </div>
@@ -159,19 +164,17 @@ export function DigitalAuthorizationPass({
                 <QRCodeSVG value={verificationUrl} size={120} level="M" includeMargin />
               ) : (
                 <p role="alert" className="text-center text-xs font-semibold text-red-700">
-                  Live QR verification is unavailable. Contact the fleet administrator.
+                  {copy.qrUnavailable}
                 </p>
               )}
               <p className="text-center text-[10px] text-slate-500">
-                Scan for live gate verification
+                {copy.scanHint}
               </p>
             </div>
           </div>
 
           <div className="border-t border-slate-200 bg-slate-50 px-4 py-2 text-[11px] text-slate-500">
-            LVAS | Bin Quraya — After-hours light vehicle authorization. Present
-            this pass with company ID. Security must scan the QR to confirm
-            current validity before entry.
+            {copy.footer}
           </div>
         </div>
       </CardContent>

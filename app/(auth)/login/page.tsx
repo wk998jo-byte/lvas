@@ -5,6 +5,7 @@ import { AmbientBackdrop } from "@/components/brand/ambient-backdrop";
 import { LoginForm } from "@/components/auth/login-form";
 import { DASHBOARD_ROLES, hasRole } from "@/lib/auth/roles";
 import { getCurrentProfile } from "@/lib/auth/session";
+import { getI18n } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,8 @@ export default async function LoginPage() {
   if (profile?.is_active && hasRole(profile.role, DASHBOARD_ROLES)) {
     redirect("/");
   }
+  const { t } = await getI18n();
+  const copy = t.auth.loginPage;
 
   return (
     <main className="relative flex min-h-svh items-center justify-center overflow-hidden p-6">
@@ -20,21 +23,21 @@ export default async function LoginPage() {
       <div className="relative z-10 w-full max-w-md animate-rise space-y-4">
         <LoginForm />
         <p className="text-center text-sm text-slate-500">
-          Sign-in is for administrators and logistics approvers. Employees can{" "}
+          {copy.intro}{" "}
           <Link
             href="/request"
             className="font-semibold text-[#e30613] underline-offset-4 hover:underline"
           >
-            submit a request
+            {copy.submitRequest}
           </Link>{" "}
-          or{" "}
+          {copy.or}{" "}
           <Link
             href="/status"
             className="font-semibold text-[#e30613] underline-offset-4 hover:underline"
           >
-            track requests by badge
+            {copy.trackByBadge}
           </Link>{" "}
-          without an account.
+          {copy.withoutAccount}
         </p>
       </div>
     </main>

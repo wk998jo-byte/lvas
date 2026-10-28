@@ -8,8 +8,11 @@ import { resetPasswordWithToken } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useI18n } from "@/lib/i18n/client";
 
 export function ResetPasswordForm({ token }: { token: string }) {
+  const { t, tm } = useI18n();
+  const copy = t.auth.reset;
   const router = useRouter();
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -26,7 +29,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
         confirm_password: confirmPassword,
       });
       if (!result.ok) {
-        setError(result.error);
+        setError(tm(result.error));
         return;
       }
       router.replace("/login?reset=1");
@@ -42,18 +45,19 @@ export function ResetPasswordForm({ token }: { token: string }) {
       <div className="relative space-y-6">
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-            Choose a new password
+            {copy.title}
           </h1>
           <p className="text-sm text-slate-500">
-            Use at least 8 characters. This link works once.
+            {copy.description}
           </p>
         </div>
         <form className="space-y-4" onSubmit={onSubmit}>
           <div className="space-y-2">
-            <Label htmlFor="new_password">New password</Label>
+            <Label htmlFor="new_password">{copy.newPassword}</Label>
             <Input
               id="new_password"
               type="password"
+              dir="ltr"
               autoComplete="new-password"
               required
               minLength={8}
@@ -64,10 +68,11 @@ export function ResetPasswordForm({ token }: { token: string }) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="confirm_password">Confirm new password</Label>
+            <Label htmlFor="confirm_password">{copy.confirmPassword}</Label>
             <Input
               id="confirm_password"
               type="password"
+              dir="ltr"
               autoComplete="new-password"
               required
               minLength={8}
@@ -87,7 +92,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
             className="h-11 w-full rounded-xl"
             disabled={pending}
           >
-            {pending ? "Saving…" : "Update password"}
+            {pending ? copy.submitting : copy.submit}
           </Button>
         </form>
         <p className="text-center text-sm text-slate-500">
@@ -95,7 +100,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
             href="/login"
             className="font-medium text-[#e30613] underline-offset-4 hover:underline"
           >
-            Back to sign in
+            {copy.backToSignIn}
           </Link>
         </p>
       </div>

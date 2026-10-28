@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 
+import { getI18n } from "@/lib/i18n/server";
 import { cn } from "@/lib/utils";
 
 type SectionCardProps = {
@@ -9,21 +10,22 @@ type SectionCardProps = {
   description?: string;
   href?: string;
   linkLabel?: string;
-  /** Right-aligned summary shown next to the title, e.g. a count. */
+  /** End-aligned summary shown next to the title, e.g. a count. */
   meta?: string;
   className?: string;
   children: ReactNode;
 };
 
-export function SectionCard({
+export async function SectionCard({
   title,
   description,
   href,
-  linkLabel = "View all",
+  linkLabel,
   meta,
   className,
   children,
 }: SectionCardProps) {
+  const { t } = await getI18n();
   return (
     <section
       className={cn(
@@ -57,8 +59,8 @@ export function SectionCard({
               href={href}
               className="inline-flex items-center gap-1 text-xs font-medium text-[#e30613] hover:underline"
             >
-              {linkLabel}
-              <ArrowUpRight className="size-3.5" />
+              {linkLabel ?? t.dashboard.sectionCard.viewAll}
+              <ArrowUpRight className="size-3.5 rtl:-scale-x-100" />
             </Link>
           ) : null}
         </div>

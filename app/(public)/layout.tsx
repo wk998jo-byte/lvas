@@ -2,13 +2,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { LogIn } from "lucide-react";
 
+import { LanguageSwitch } from "@/components/i18n/language-switch";
 import { Button } from "@/components/ui/button";
+import { getI18n } from "@/lib/i18n/server";
 
-export default function PublicLayout({
+export default async function PublicLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { t } = await getI18n();
+  const copy = t.public.layout;
+
   return (
     <div className="flex min-h-svh flex-col bg-slate-50">
       <div aria-hidden className="h-1 w-full bg-[#e30613]" />
@@ -18,7 +23,7 @@ export default function PublicLayout({
           <Link href="/request" className="flex min-w-0 items-center gap-3">
             <Image
               src="/logo-mark.png"
-              alt="Bin Quraya"
+              alt={t.common.companyName}
               width={44}
               height={44}
               priority
@@ -32,25 +37,26 @@ export default function PublicLayout({
                 <span className="size-1.5 rounded-full bg-[#e30613]" />
               </span>
               <span className="mt-1 block truncate text-[11px] font-medium text-slate-500">
-                Light Vehicle Authorization System · Bin Quraya
+                {copy.tagline}
               </span>
             </span>
           </Link>
 
           <div className="flex shrink-0 items-center gap-2">
+            <LanguageSwitch className="px-2.5 sm:px-3" />
             <Link
               href="/status"
               className="rounded-full px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
             >
-              Track requests
+              {copy.trackRequests}
             </Link>
             <Button
               variant="outline"
               className="h-9 shrink-0 rounded-full border-slate-200 px-3 text-xs text-slate-600 hover:bg-slate-50"
               render={<Link href="/login" />}
             >
-              <LogIn className="size-3.5" />
-              <span className="hidden sm:inline">Admin sign in</span>
+              <LogIn className="size-3.5 rtl:rotate-180" />
+              <span className="hidden sm:inline">{copy.adminSignIn}</span>
             </Button>
           </div>
         </div>
@@ -64,7 +70,7 @@ export default function PublicLayout({
         <span className="font-semibold tracking-[0.14em] text-slate-700">
           LVAS
         </span>{" "}
-        · بن قريعة Bin Quraya — after-hours light vehicle authorization
+        {copy.footer}
       </footer>
     </div>
   );

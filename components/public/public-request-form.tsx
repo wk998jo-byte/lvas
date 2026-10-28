@@ -28,7 +28,6 @@ import {
 import { PROJECT_LOCATIONS } from "@/lib/approvals/logistics-team";
 import {
   durationExceedsLimit,
-  durationLimitMessage,
   getRoleRequestLimit,
   hasOneDayOrCustomDuration,
   type RoleRequestLimit,
@@ -36,6 +35,9 @@ import {
 import { addCalendarDays, saudiTodayIsoDate } from "@/lib/business-date";
 import { formatDurationLabel, inclusiveDayCount } from "@/lib/dates";
 import { roleLabel } from "@/lib/auth/roles";
+import { useI18n } from "@/lib/i18n/client";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
+import type { UserRole } from "@/types/database";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -56,11 +58,20 @@ function maxEndDate(startDate: string, limit: RoleRequestLimit | null) {
   return addCalendarDays(startDate, limit.maxDurationDays - 1);
 }
 
+/** Translated cadence/window for the role's limit; null when exempt. */
+function limitCopy(role: UserRole, limits: Dictionary["common"]["limits"]) {
+  if (!getRoleRequestLimit(role)) return null;
+  return role === "manager_requester"
+    ? { cadence: limits.managerCadence, duration: limits.managerDuration }
+    : { cadence: limits.dailyCadence, duration: limits.dailyDuration };
+}
+
 /** Identity carried between steps; the server re-verifies on submit. */
 type VerifiedIdentity = { employee: PublicEmployee; idLast4: string };
 
 export function PublicRequestForm({ vehicles }: PublicRequestFormProps) {
   const router = useRouter();
+  const { t } = useI18n();
   const [verified, setVerified] = useState<VerifiedIdentity | null>(null);
 
   return (
@@ -75,8 +86,8 @@ export function PublicRequestForm({ vehicles }: PublicRequestFormProps) {
       ) : (
         <StepShell
           step="2"
-          title="Request details"
-          description="Unlocks once your identity is confirmed."
+          title={t.public.form.detailsTitle}
+          description={t.public.form.detailsLocked}
           muted
         />
       )}
@@ -91,6 +102,8 @@ function IdentityStep({
   verified: VerifiedIdentity | null;
   onVerified: (identity: VerifiedIdentity | null) => void;
 }) {
+  const { t, locale, tm } = useI18n();
+  const copy = t.public.form.identity;
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PublicEmployee[]>([]);
   const [selected, setSelected] = useState<PublicEmployee | null>(null);
@@ -126,7 +139,7 @@ function IdentityStep({
   function submitVerification(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected) {
-      setError("Find and select your name first.");
+      setError(copy.findFirst);
       return;
     }
 
@@ -143,28 +156,31 @@ function IdentityStep({
       }
 
       onVerified({ employee: result.data, idLast4 });
-      toast.success(`Welcome, ${result.data.full_name.split(" ")[0]}`);
+      toast.success(copy.welcome(result.data.full_name.split(" ")[0]));
     });
   }
 
   if (verified) {
-    const limit = getRoleRequestLimit(verified.employee.role);
+    const limit = limitCopy(verified.employee.role, t.common.limits);
     return (
       <StepShell
         step="1"
-        title="Identity confirmed"
-        description={`${verified.employee.full_name} · badge ${verified.employee.badge}`}
+        title={copy.confirmedTitle}
+        description={copy.confirmedDescription(
+          verified.employee.full_name,
+          verified.employee.badge,
+        )}
         done
       >
         <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
             <BadgeCheck className="size-3.5" />
-            {roleLabel(verified.employee.role)}
+            {roleLabel(verified.employee.role, locale)}
           </span>
           {limit ? (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
               <Clock3 className="size-3.5" />
-              {limit.cadenceLabel}, {limit.durationLabel}
+              {copy.limitSummary(limit.cadence, limit.duration)}
             </span>
           ) : null}
           <Button
@@ -173,7 +189,7 @@ function IdentityStep({
             className="h-8 rounded-full px-3 text-xs"
             onClick={() => onVerified(null)}
           >
-            Not you?
+            {copy.notYou}
           </Button>
         </div>
       </StepShell>
@@ -183,32 +199,32 @@ function IdentityStep({
   return (
     <StepShell
       step="1"
-      title="Confirm who you are"
-      description="Search the employee directory, then verify with the last 4 digits of your national ID."
+      title={copy.title}
+      description={copy.description}
     >
       <form className="space-y-4" onSubmit={submitVerification}>
         <div className="space-y-2">
-          <Label htmlFor="employee-search">Badge number or name</Label>
+          <Label htmlFor="employee-search">{copy.searchLabel}</Label>
           <div className="relative">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-slate-400" />
             <Input
               id="employee-search"
               value={query}
               autoComplete="off"
-              placeholder="e.g. 20451 or Mohammed Ali"
-              className="h-11 rounded-xl pl-9"
+              placeholder={copy.searchPlaceholder}
+              className="h-11 rounded-xl ps-9"
               onChange={(e) => {
                 setQuery(e.target.value);
                 setSelected(null);
               }}
             />
             {searching && term.length >= 3 ? (
-              <Loader2 className="absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-slate-400" />
+              <Loader2 className="absolute top-1/2 end-3 size-4 -translate-y-1/2 animate-spin text-slate-400" />
             ) : null}
           </div>
           {term.length > 0 && term.length < 3 ? (
             <p className="text-xs text-slate-500">
-              Type at least 3 characters.
+              {copy.minChars}
             </p>
           ) : null}
         </div>
@@ -223,7 +239,7 @@ function IdentityStep({
                     type="button"
                     onClick={() => setSelected(employee)}
                     className={cn(
-                      "flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition",
+                      "flex w-full items-center justify-between gap-3 px-3 py-2.5 text-start transition",
                       active ? "bg-red-50" : "hover:bg-slate-50",
                     )}
                   >
@@ -232,7 +248,7 @@ function IdentityStep({
                         {employee.full_name}
                       </span>
                       <span className="block truncate text-xs text-slate-500">
-                        Badge {employee.badge}
+                        {copy.resultBadge(employee.badge)}
                         {employee.department ? ` · ${employee.department}` : ""}
                       </span>
                     </span>
@@ -248,15 +264,16 @@ function IdentityStep({
 
         {term.length >= 3 && !searching && visibleResults.length === 0 ? (
           <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-            No employee matches that search. Check your badge number.
+            {copy.noMatches}
           </p>
         ) : null}
 
         <div className="grid gap-4 sm:grid-cols-[200px_auto] sm:items-end">
           <div className="space-y-2">
-            <Label htmlFor="id_last4">Last 4 digits of national ID</Label>
+            <Label htmlFor="id_last4">{copy.idLast4Label}</Label>
             <Input
               id="id_last4"
+              dir="ltr"
               inputMode="numeric"
               maxLength={4}
               value={idLast4}
@@ -274,7 +291,7 @@ function IdentityStep({
             disabled={!selected || idLast4.length !== 4 || pending}
           >
             <ShieldCheck className="size-4" />
-            {pending ? "Verifying…" : "Verify identity"}
+            {pending ? copy.verifying : copy.verify}
           </Button>
         </div>
 
@@ -283,7 +300,7 @@ function IdentityStep({
             className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
             role="alert"
           >
-            {error}
+            {tm(error)}
           </p>
         ) : null}
       </form>
@@ -300,8 +317,11 @@ function DetailsStep({
   vehicles: VehicleOption[];
   onSubmitted: (token: string) => void;
 }) {
+  const { t, intl, tm } = useI18n();
+  const copy = t.public.form.details;
   const { employee } = identity;
   const limit = getRoleRequestLimit(employee.role);
+  const limitText = limitCopy(employee.role, t.common.limits);
   const useDurationPresets = hasOneDayOrCustomDuration(employee.role);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -318,6 +338,7 @@ function DetailsStep({
   const [mobile, setMobile] = useState("");
   const [location, setLocation] = useState("");
   const [justification, setJustification] = useState("");
+  const [extendedTime, setExtendedTime] = useState<boolean | null>(null);
 
   const computedDuration = useMemo(
     () => formatDurationLabel(startDate, endDate),
@@ -349,11 +370,15 @@ function DetailsStep({
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!vehicle) {
-      setError("Select a vehicle");
+      setError(copy.selectVehicle);
       return;
     }
     if (limit && overLimit) {
-      setError(durationLimitMessage(limit));
+      setError(copy.durationLimit(limitText?.duration ?? limit.durationLabel));
+      return;
+    }
+    if (extendedTime === null) {
+      setError(t.common.extendedTime.chooseError);
       return;
     }
 
@@ -370,15 +395,16 @@ function DetailsStep({
         location,
         justification,
         contact_mobile: mobile,
+        extended_time: extendedTime,
       });
 
       if (!result.ok) {
         setError(result.error);
-        toast.error(result.error);
+        toast.error(tm(result.error));
         return;
       }
 
-      toast.success("Request submitted");
+      toast.success(copy.submitted);
       onSubmitted(result.data.token);
     });
   }
@@ -386,12 +412,12 @@ function DetailsStep({
   return (
     <StepShell
       step="2"
-      title="Request details"
-      description="Pick the vehicle and the after-hours window you need."
+      title={t.public.form.detailsTitle}
+      description={copy.description}
     >
       <form className="space-y-5" onSubmit={onSubmit}>
         <div className="space-y-2">
-          <Label htmlFor="vehicle">Vehicle</Label>
+          <Label htmlFor="vehicle">{copy.vehicle}</Label>
           <VehicleCombobox
             id="vehicle"
             vehicles={vehicles}
@@ -400,15 +426,14 @@ function DetailsStep({
             disabled={pending}
           />
           <p className="text-xs text-slate-500">
-            Type a door number, plate, make, or model to filter{" "}
-            {vehicles.length.toLocaleString()} vehicles.
+            {copy.vehicleHelp(vehicles.length.toLocaleString(intl))}
           </p>
         </div>
 
         {useDurationPresets ? (
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label>Duration</Label>
+              <Label>{copy.duration}</Label>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -421,7 +446,7 @@ function DetailsStep({
                       : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
                   )}
                 >
-                  1 day
+                  {copy.oneDay}
                 </button>
                 <button
                   type="button"
@@ -434,21 +459,19 @@ function DetailsStep({
                       : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
                   )}
                 >
-                  Custom (up to 1 month)
+                  {copy.custom}
                 </button>
               </div>
-              <p className="text-xs text-slate-500">
-                Default is 1 day. Custom lets you choose any window up to 30
-                days. You can submit once every day.
-              </p>
+              <p className="text-xs text-slate-500">{copy.presetHelp}</p>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="start_date">Start date</Label>
+                <Label htmlFor="start_date">{copy.startDate}</Label>
                 <Input
                   id="start_date"
                   type="date"
+                  dir="ltr"
                   required
                   value={startDate}
                   min={saudiTodayIsoDate()}
@@ -474,10 +497,11 @@ function DetailsStep({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="end_date">End date</Label>
+                <Label htmlFor="end_date">{copy.endDate}</Label>
                 <Input
                   id="end_date"
                   type="date"
+                  dir="ltr"
                   required
                   value={endDate}
                   min={startDate}
@@ -496,10 +520,10 @@ function DetailsStep({
                   )}
                 >
                   {durationMode === "one_day"
-                    ? "Single-day authorization."
+                    ? copy.singleDay
                     : overLimit
-                      ? `Max is 1 month (30 days). Selected: ${selectedDays} days.`
-                      : `Selected: ${selectedDays} day${selectedDays === 1 ? "" : "s"} (max 30).`}
+                      ? copy.overMonth(selectedDays)
+                      : copy.selectedDays(selectedDays)}
                 </p>
               </div>
             </div>
@@ -507,10 +531,11 @@ function DetailsStep({
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="start_date">Start date</Label>
+              <Label htmlFor="start_date">{copy.startDate}</Label>
               <Input
                 id="start_date"
                 type="date"
+                dir="ltr"
                 required
                 value={startDate}
                 min={saudiTodayIsoDate()}
@@ -523,10 +548,11 @@ function DetailsStep({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="end_date">End date</Label>
+              <Label htmlFor="end_date">{copy.endDate}</Label>
               <Input
                 id="end_date"
                 type="date"
+                dir="ltr"
                 required
                 value={endDate}
                 min={startDate}
@@ -546,8 +572,8 @@ function DetailsStep({
                   )}
                 >
                   {overLimit
-                    ? `Your category allows ${limit.durationLabel}. Selected: ${selectedDays} days.`
-                    : `Max window: ${limit.durationLabel}.`}
+                    ? copy.categoryOver(limitText?.duration ?? limit.durationLabel, selectedDays)
+                    : copy.maxWindow(limitText?.duration ?? limit.durationLabel)}
                 </p>
               ) : null}
             </div>
@@ -556,14 +582,14 @@ function DetailsStep({
 
         {!useDurationPresets ? (
           <div className="space-y-2">
-            <Label htmlFor="duration_label">Duration</Label>
+            <Label htmlFor="duration_label">{copy.duration}</Label>
             <Input
               id="duration_label"
               required
               value={durationLabel}
               disabled={pending}
               className="h-11 rounded-xl"
-              placeholder={computedDuration || "e.g. 3 days"}
+              placeholder={computedDuration || copy.durationPlaceholder}
               onChange={(e) => {
                 setDurationTouched(true);
                 setDurationLabel(e.target.value);
@@ -574,20 +600,17 @@ function DetailsStep({
           <input type="hidden" name="duration_label" value={durationLabel} />
         )}
 
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-600">
-          <p className="flex items-center gap-1.5 font-medium text-slate-800">
-            <Clock3 className="size-3.5" />
-            After-hours authorization
-          </p>
-          <p className="mt-1">
-            Vehicle use is authorized after 7:00 PM on each approved date.
-          </p>
-        </div>
+        <ExtendedTimeField
+          value={extendedTime}
+          onChange={setExtendedTime}
+          disabled={pending}
+        />
 
         <div className="space-y-2">
-          <Label htmlFor="contact_mobile">Mobile number</Label>
+          <Label htmlFor="contact_mobile">{copy.mobile}</Label>
           <Input
             id="contact_mobile"
+            dir="ltr"
             inputMode="numeric"
             required
             value={mobile}
@@ -596,13 +619,11 @@ function DetailsStep({
             className="h-11 rounded-xl"
             onChange={(e) => setMobile(e.target.value.replace(/\D/g, ""))}
           />
-          <p className="text-xs text-slate-500">
-            Used only to reach you about this request.
-          </p>
+          <p className="text-xs text-slate-500">{copy.mobileHelp}</p>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="location">Project location</Label>
+          <Label htmlFor="location">{copy.location}</Label>
           <select
             id="location"
             required
@@ -611,7 +632,7 @@ function DetailsStep({
             className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
             onChange={(event) => setLocation(event.target.value)}
           >
-            <option value="">Select your project location</option>
+            <option value="">{copy.locationPlaceholder}</option>
             {PROJECT_LOCATIONS.map((item) => (
               <option key={item} value={item}>
                 {item}
@@ -621,7 +642,7 @@ function DetailsStep({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="justification">Justification</Label>
+          <Label htmlFor="justification">{copy.justification}</Label>
           <Textarea
             id="justification"
             required
@@ -629,12 +650,10 @@ function DetailsStep({
             value={justification}
             disabled={pending}
             onChange={(e) => setJustification(e.target.value)}
-            placeholder="Why do you need this vehicle?"
+            placeholder={copy.justificationPlaceholder}
             className="min-h-24 rounded-xl border-slate-200 bg-white"
           />
-          <p className="text-xs text-slate-500">
-            Required. Explain why the vehicle is needed.
-          </p>
+          <p className="text-xs text-slate-500">{copy.justificationHelp}</p>
         </div>
 
         {error ? (
@@ -642,7 +661,7 @@ function DetailsStep({
             className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
             role="alert"
           >
-            {error}
+            {tm(error)}
           </p>
         ) : null}
 
@@ -653,11 +672,64 @@ function DetailsStep({
             disabled={pending || overLimit}
           >
             <Send className="size-4" />
-            {pending ? "Submitting…" : "Submit request"}
+            {pending ? copy.submitting : copy.submit}
           </Button>
         </div>
       </form>
     </StepShell>
+  );
+}
+
+function ExtendedTimeField({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: boolean | null;
+  onChange: (value: boolean) => void;
+  disabled: boolean;
+}) {
+  const { t } = useI18n();
+  const copy = t.common.extendedTime;
+  const options = [
+    { value: false, label: copy.noLabel },
+    { value: true, label: copy.yesLabel },
+  ];
+
+  return (
+    <fieldset className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+      <legend className="sr-only">{copy.question}</legend>
+      <p className="flex items-center gap-1.5 text-sm font-medium text-slate-800" aria-hidden>
+        <Clock3 className="size-3.5" />
+        {copy.question}
+      </p>
+      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={copy.question}>
+        {options.map((option) => (
+          <button
+            key={String(option.value)}
+            type="button"
+            role="radio"
+            aria-checked={value === option.value}
+            disabled={disabled}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-sm font-medium transition",
+              value === option.value
+                ? "border-[#e30613]/30 bg-[#e30613] text-white"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+            )}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-slate-500">{copy.help}</p>
+      {value !== null ? (
+        <p className="text-sm text-slate-600">
+          {value ? copy.extendedWindow : copy.standardWindow}
+        </p>
+      ) : null}
+    </fieldset>
   );
 }
 

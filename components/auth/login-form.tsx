@@ -9,8 +9,11 @@ import { BrandLogo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useI18n } from "@/lib/i18n/client";
 
 export function LoginForm() {
+  const { t, tm } = useI18n();
+  const copy = t.auth.login;
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next") || "/";
@@ -19,7 +22,7 @@ export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(() =>
-    sessionError ? "Session check failed. Sign in again." : null,
+    sessionError ? copy.sessionError : null,
   );
   const passwordReset = searchParams.get("reset") === "1";
   const [loading, setLoading] = useState(false);
@@ -37,7 +40,7 @@ export function LoginForm() {
       });
 
       if (!result.ok) {
-        setError(result.error);
+        setError(tm(result.error));
         return;
       }
 
@@ -46,10 +49,10 @@ export function LoginForm() {
     } catch (err) {
       const message =
         err instanceof Error
-          ? err.message
+          ? tm(err.message)
           : typeof err === "string"
-            ? err
-            : "Sign-in failed";
+            ? tm(err)
+            : copy.failed;
       setError(message);
     } finally {
       setLoading(false);
@@ -72,10 +75,10 @@ export function LoginForm() {
           <BrandLogo variant="full" tone="light" priority />
           <div className="space-y-2">
             <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-              Light Vehicles Authorization
+              {copy.title}
             </h1>
             <p className="text-sm text-slate-500">
-              Secure after-hours fleet access for Bin Quraya.
+              {copy.subtitle}
             </p>
           </div>
         </div>
@@ -83,11 +86,12 @@ export function LoginForm() {
         <form className="space-y-4" onSubmit={onSubmit}>
           <div className="space-y-2">
             <Label htmlFor="email" className="text-slate-700">
-              Email
+              {copy.email}
             </Label>
             <Input
               id="email"
               type="email"
+              dir="ltr"
               autoComplete="email"
               required
               value={email}
@@ -98,11 +102,12 @@ export function LoginForm() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="password" className="text-slate-700">
-              Password
+              {copy.password}
             </Label>
             <Input
               id="password"
               type="password"
+              dir="ltr"
               autoComplete="current-password"
               required
               value={password}
@@ -111,17 +116,17 @@ export function LoginForm() {
               className="glass-input h-11 rounded-xl"
             />
           </div>
-          <div className="text-right">
+          <div className="text-end">
             <Link
               href="/forgot-password"
               className="text-sm font-medium text-[#e30613] underline-offset-4 hover:underline"
             >
-              Forgot password?
+              {copy.forgotPassword}
             </Link>
           </div>
           {passwordReset ? (
             <p className="text-sm text-emerald-700" role="status">
-              Password updated. Sign in with your new password.
+              {copy.passwordReset}
             </p>
           ) : null}
           {error ? (
@@ -134,7 +139,7 @@ export function LoginForm() {
             type="submit"
             disabled={loading}
           >
-            {loading ? "Signing in…" : "Sign in"}
+            {loading ? copy.submitting : copy.submit}
           </Button>
         </form>
       </div>

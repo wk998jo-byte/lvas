@@ -18,6 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { roleLabel } from "@/lib/auth/roles";
+import { useI18n } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 import type { Employee, UserRole } from "@/types/database";
 
@@ -33,12 +34,15 @@ type EmployeesBrowserProps = {
   counts: Record<EmployeeFilter, number>;
 };
 
-const FILTERS: { key: EmployeeFilter; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "manager_requester", label: "Managers" },
-  { key: "supervisor_requester", label: "Supervisors" },
-  { key: "other_employee", label: "Other employees" },
-];
+const FILTERS = [
+  { key: "all", label: "filterAll" },
+  { key: "manager_requester", label: "filterManagers" },
+  { key: "supervisor_requester", label: "filterSupervisors" },
+  { key: "other_employee", label: "filterOther" },
+] as const satisfies readonly {
+  key: EmployeeFilter;
+  label: "filterAll" | "filterManagers" | "filterSupervisors" | "filterOther";
+}[];
 
 function roleTone(role: UserRole) {
   switch (role) {
@@ -60,6 +64,8 @@ export function EmployeesBrowser({
   role,
   counts,
 }: EmployeesBrowserProps) {
+  const { t, locale, intl } = useI18n();
+  const copy = t.employees.browser;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -102,22 +108,22 @@ export function EmployeesBrowser({
       <div className="flex flex-col gap-4 border-b border-slate-100 p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative w-full max-w-md">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-slate-400" />
             <Input
               value={draftQuery}
               onChange={(event) => setDraftQuery(event.target.value)}
-              placeholder="Search badge, name, ID, mobile, department, position…"
-              className="h-10 rounded-xl border-slate-200 pl-10"
+              placeholder={copy.searchPlaceholder}
+              className="h-10 rounded-xl border-slate-200 ps-10"
             />
             {pending ? (
-              <Loader2 className="absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-slate-400" />
+              <Loader2 className="absolute top-1/2 end-3 size-4 -translate-y-1/2 animate-spin text-slate-400" />
             ) : null}
           </div>
           <p className="text-sm text-slate-500">
             <span className="font-medium text-slate-700 tabular-nums">
-              {total.toLocaleString()}
+              {total.toLocaleString(intl)}
             </span>{" "}
-            matching employee{total === 1 ? "" : "s"}
+            {copy.matching(total)}
           </p>
         </div>
 
@@ -141,7 +147,7 @@ export function EmployeesBrowser({
                     : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
                 )}
               >
-                {item.label}
+                {copy[item.label]}
                 <span
                   className={cn(
                     "rounded-full px-1.5 py-0.5 text-[11px] tabular-nums",
@@ -150,7 +156,7 @@ export function EmployeesBrowser({
                       : "bg-slate-100 text-slate-500",
                   )}
                 >
-                  {counts[item.key].toLocaleString()}
+                  {counts[item.key].toLocaleString(intl)}
                 </span>
               </button>
             );
@@ -162,11 +168,9 @@ export function EmployeesBrowser({
         <div className="p-4">
           <EmptyState
             icon={UsersRound}
-            title={query ? "No matching employees" : "No employees yet"}
+            title={query ? copy.noMatchingTitle : copy.noEmployeesTitle}
             description={
-              query
-                ? "Try another badge, name, department, or position."
-                : "Run the employee import script to populate the directory."
+              query ? copy.noMatchingDescription : copy.noEmployeesDescription
             }
           />
         </div>
@@ -175,12 +179,12 @@ export function EmployeesBrowser({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Badge</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Position</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Mobile</TableHead>
+                <TableHead>{copy.badge}</TableHead>
+                <TableHead>{copy.name}</TableHead>
+                <TableHead>{copy.department}</TableHead>
+                <TableHead>{copy.position}</TableHead>
+                <TableHead>{copy.category}</TableHead>
+                <TableHead>{copy.mobile}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -203,7 +207,7 @@ export function EmployeesBrowser({
                       variant="outline"
                       className={cn("rounded-full", roleTone(employee.role))}
                     >
-                      {roleLabel(employee.role)}
+                      {roleLabel(employee.role, locale)}
                     </Badge>
                   </TableCell>
                   <TableCell className="tabular-nums text-slate-500">
@@ -216,16 +220,18 @@ export function EmployeesBrowser({
 
           <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-slate-500">
-              Showing <span className="font-medium text-slate-700">{from}</span>
-              –<span className="font-medium text-slate-700">{to}</span> of{" "}
+              {copy.showing}{" "}
+              <span className="font-medium text-slate-700">{from}</span>
+              –<span className="font-medium text-slate-700">{to}</span>{" "}
+              {copy.of}{" "}
               <span className="font-medium text-slate-700">
-                {total.toLocaleString()}
+                {total.toLocaleString(intl)}
               </span>
             </p>
 
             <div className="flex flex-wrap items-center gap-3">
               <label className="flex items-center gap-2 text-sm text-slate-500">
-                Rows
+                {copy.rows}
                 <select
                   value={pageSize}
                   onChange={(event) =>
@@ -249,7 +255,7 @@ export function EmployeesBrowser({
                   disabled={page <= 1 || pending}
                   onClick={() => pushParams({ page: String(page - 1) })}
                 >
-                  Previous
+                  {copy.previous}
                 </Button>
                 <span className="px-2 text-sm tabular-nums text-slate-600">
                   {page} / {pageCount}
@@ -261,7 +267,7 @@ export function EmployeesBrowser({
                   disabled={page >= pageCount || pending}
                   onClick={() => pushParams({ page: String(page + 1) })}
                 >
-                  Next
+                  {copy.next}
                 </Button>
               </div>
             </div>

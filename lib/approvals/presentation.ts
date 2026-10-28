@@ -1,3 +1,5 @@
+import { DEFAULT_LOCALE, intlLocale, type Locale } from "@/lib/i18n/config";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 import type { AuthorizationStatus, UserRole } from "@/types/database";
 
 type ApprovalState = {
@@ -21,48 +23,66 @@ export function canReviewApproval(
   );
 }
 
-export function approvalStatusLabel(request: ApprovalState): string {
+export function approvalStatusLabel(
+  request: ApprovalState,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  const { common } = getDictionary(locale);
   if (request.status === "pending") {
     return request.approval_stage === 1
-      ? "Waiting for Logistics approval"
-      : "Logistics approved — waiting for final approval";
+      ? common.approval.waitingLogistics
+      : common.approval.waitingFinal;
   }
   if (request.status === "rejected") {
     return request.approval_stage === 1
-      ? "Rejected by Logistics"
-      : "Rejected by Final Approver";
+      ? common.approval.rejectedByLogistics
+      : common.approval.rejectedByFinal;
   }
-  return {
-    approved: "Approved",
-    expired: "Expired",
-    cancelled: "Cancelled",
-  }[request.status];
+  return common.status[request.status];
 }
 
-export function approvalDetailMessage(role: UserRole, request: ApprovalState): string {
+export function approvalDetailMessage(
+  role: UserRole,
+  request: ApprovalState,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
   if (role === "admin" && request.status === "pending" && request.approval_stage === 2) {
-    return "Logistics approved — awaiting final decision";
+    return getDictionary(locale).common.approval.awaitingFinalDecision;
   }
-  return approvalStatusLabel(request);
+  return approvalStatusLabel(request, locale);
 }
 
-export function decisionActorLabel(request: ApprovalState): string {
+export function decisionActorLabel(
+  request: ApprovalState,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  const { common } = getDictionary(locale);
   return request.status === "rejected"
-    ? approvalStatusLabel(request)
-    : request.status === "pending" ? "Assigned final approver" : "Final approver";
+    ? approvalStatusLabel(request, locale)
+    : request.status === "pending"
+      ? common.approval.assignedFinalApprover
+      : common.approval.finalApprover;
 }
 
-export function approvalSuccessMessage(request: ApprovalState): string {
+export function approvalSuccessMessage(
+  request: ApprovalState,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  const { common } = getDictionary(locale);
   return request.status === "pending" && request.approval_stage === 2
-    ? "Logistics approval recorded. Request sent for final approval."
-    : "Authorization approved";
+    ? common.approval.logisticsRecorded
+    : common.approval.authorizationApproved;
 }
 
-export function formatDecisionTime(value: string | null | undefined): string {
-  if (!value) return "Not recorded";
+export function formatDecisionTime(
+  value: string | null | undefined,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  const { common } = getDictionary(locale);
+  if (!value) return common.notRecorded;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Not recorded";
-  return `${new Intl.DateTimeFormat("en-GB", {
+  if (Number.isNaN(date.getTime())) return common.notRecorded;
+  return `${new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: "Asia/Riyadh",
     day: "2-digit",
     month: "short",
@@ -70,5 +90,5 @@ export function formatDecisionTime(value: string | null | undefined): string {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
-  }).format(date)} (Saudi time)`;
+  }).format(date)} (${common.saudiTime})`;
 }
