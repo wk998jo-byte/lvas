@@ -7,6 +7,7 @@ import {
   Car,
   CheckCircle2,
   Clock3,
+  Hourglass,
   Mail,
   Timer,
   UserRound,
@@ -193,6 +194,7 @@ export function AuthorizationDetailView({
   const firstApprover = one(request.first_approver);
   const rejectedBy = one(request.rejected_by);
   const usage = formatUsageAfter(request.usage_after);
+  const extended = isExtendedUsageAfter(request.usage_after);
   const plate = vehicle
     ? `${vehicle.door_number ? `${t.approvals.table.door(vehicle.door_number)} · ` : ""}${plateLabel(vehicle)}`
     : copy.requestFallback;
@@ -245,7 +247,7 @@ export function AuthorizationDetailView({
         </div>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <InfoTile
           icon={CalendarDays}
           label={copy.startDate}
@@ -262,14 +264,16 @@ export function AuthorizationDetailView({
           value={request.duration_label}
         />
         <InfoTile
+          icon={Hourglass}
+          label={t.common.extendedTime.question}
+          value={extended ? t.common.yes : t.common.no}
+          badge={extended ? t.common.extendedTime.badge : undefined}
+          accent={extended}
+        />
+        <InfoTile
           icon={Clock3}
           label={t.common.extendedTime.usageAfter}
           value={usage}
-          badge={
-            isExtendedUsageAfter(request.usage_after)
-              ? t.common.extendedTime.badge
-              : undefined
-          }
           accent
         />
       </section>
