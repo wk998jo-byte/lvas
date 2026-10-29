@@ -21,12 +21,16 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd /home/runner/workspace/lvas-main && PORT=5000 npm start"
+args = "cd /home/runner/workspace && PORT=5000 npm start"
 waitForPort = 5000
 
 [[ports]]
 localPort = 3001
 externalPort = 3001
+
+[[ports]]
+localPort = 3005
+externalPort = 3002
 
 [[ports]]
 localPort = 3100
@@ -44,5 +48,5 @@ defaultBucketID = "replit-objstore-ab65837d-daab-4308-8535-0265ddda4db2"
 
 [deployment]
 deploymentTarget = "autoscale"
-build = "cd /home/runner/workspace/lvas-main && npm ci && npm run build"
-run = "cd /home/runner/workspace/lvas-main && npm start"
+build = "cd /home/runner/workspace && npm ci && npm run build"
+run = "cd /home/runner/workspace && npm start"
