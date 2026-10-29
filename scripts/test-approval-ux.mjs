@@ -77,6 +77,13 @@ function load(file) {
     if (name === "@/lib/auth/approver") return { getDefaultApproverId: async () => adminId };
     if (name === "@/lib/security/rate-limit") return { consumeRateLimit: async () => ({ allowed: true }) };
     if (name === "next/cache") return { revalidatePath: (value) => revalidated.push(value) };
+    if (name === "next/headers") return { cookies: async () => ({ get: () => undefined }) };
+    if (name === "@/lib/i18n/client") return {
+      useI18n: () => ({
+        locale: "en", dir: "ltr", intl: "en-GB", tm: (message) => message,
+        t: load("lib/i18n/dictionaries/index.ts").getDictionary("en"),
+      }),
+    };
     if (name === "next/navigation") return { notFound: () => { throw Object.assign(new Error("Not found"), { code: 404 }); } };
     if (name === "next/link") return function MockNextLink({ href, children, className }) {
       return React.createElement("a", { href, className }, children);
@@ -322,7 +329,7 @@ try {
   }
   for (const file of ["components/approvals/approval-actions.tsx", "components/approvals/approvals-table.tsx"]) {
     const text = readFileSync(path.join(root, file), "utf8");
-    assert.match(text, /approvalSuccessMessage\(result.data\)/);
+    assert.match(text, /approvalSuccessMessage\(result\.data(?:, locale)?\)/);
     assert.doesNotMatch(text, /toast.success\("Request approved"\)/);
   }
   console.log("approval-ux: PASS (A–I: real conditional SQL, role/stage UI, scoped waiting list, public wording, attribution, persisted notification-failure decisions, Saudi time)");

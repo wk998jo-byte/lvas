@@ -12,6 +12,7 @@ import {
   getRoleRequestLimit,
 } from "@/lib/authorizations/limits";
 import {
+  EXTENDED_USAGE_AFTER,
   FIXED_USAGE_AFTER,
   isOnOrAfterSaudiToday,
 } from "@/lib/business-date";
@@ -193,7 +194,7 @@ export async function submitPublicRequest(
       start_date: parsed.data.start_date,
       end_date: parsed.data.end_date,
       duration_label: parsed.data.duration_label,
-      usage_after: FIXED_USAGE_AFTER,
+      usage_after: parsed.data.extended_time ? EXTENDED_USAGE_AFTER : FIXED_USAGE_AFTER,
       purpose: parsed.data.justification,
       contact_mobile: parsed.data.contact_mobile,
       location: parsed.data.location,
@@ -205,7 +206,7 @@ export async function submitPublicRequest(
       event: "request_submitted",
       recipientIds: logisticsApproverIds,
       title: "New authorization request",
-      body: `${employee.full_name} (badge ${employee.badge}) requested a vehicle at ${parsed.data.location} from ${parsed.data.start_date} to ${parsed.data.end_date}.`,
+      body: `${employee.full_name} (badge ${employee.badge}) requested a vehicle at ${parsed.data.location} from ${parsed.data.start_date} to ${parsed.data.end_date}${parsed.data.extended_time ? " with extended time (use after 21:00)" : ""}.`,
     });
 
     revalidatePath("/", "layout");
@@ -231,6 +232,7 @@ export type BadgeRequestSummary = {
   startDate: string;
   endDate: string;
   durationLabel: string;
+  usageAfter: string;
   purpose: string | null;
   rejectionReason: string | null;
   location: string | null;
@@ -269,6 +271,7 @@ export async function lookupRequestsByBadge(
         startDate: row.start_date.slice(0, 10),
         endDate: row.end_date.slice(0, 10),
         durationLabel: row.duration_label,
+        usageAfter: row.usage_after.slice(0, 5),
         purpose: row.purpose,
         rejectionReason: row.rejection_reason,
         location: row.location,

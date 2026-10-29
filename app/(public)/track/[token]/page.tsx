@@ -8,20 +8,14 @@ import { PublicPass } from "@/components/public/public-pass";
 import { Button } from "@/components/ui/button";
 import { approvalStatusLabel } from "@/lib/approvals/presentation";
 import { effectiveAuthorizationStatus } from "@/lib/authorizations/effective-status";
-import { saudiTodayIsoDate } from "@/lib/business-date";
+import { isExtendedUsageAfter, saudiTodayIsoDate } from "@/lib/business-date";
 import { getAuthorizationByPublicToken } from "@/lib/db/queries";
+import { getI18n } from "@/lib/i18n/server";
 import { publicTokenSchema } from "@/lib/validations";
 import { buildGateVerificationUrl } from "@/lib/authorizations/gate-url";
 import { plateLabel } from "@/components/vehicles/plate-label";
 
 export const dynamic = "force-dynamic";
-
-const STATUS_HINT: Record<string, string> = {
-  approved: "Approved. Show the pass below at the gate.",
-  rejected: "This request was rejected.",
-  expired: "This authorization has expired.",
-  cancelled: "This authorization has ended.",
-};
 
 export default async function TrackRequestPage({
   params,
@@ -32,14 +26,18 @@ export default async function TrackRequestPage({
   const parsed = publicTokenSchema.safeParse({ token });
   if (!parsed.success) notFound();
 
+  const { t, locale, tm } = await getI18n();
+  const copy = t.public.track;
+  const vehicleCopy = t.public.vehicle;
+
   if (!(await consumeRateLimit("tokenTracking")).allowed) {
-    return <p role="alert">{TOO_MANY_ATTEMPTS}</p>;
+    return <p role="alert">{tm(TOO_MANY_ATTEMPTS)}</p>;
   }
   let request;
   try {
     request = await getAuthorizationByPublicToken(parsed.data.token);
   } catch {
-    return <p role="alert">{SAFE_REQUEST_ERROR}</p>;
+    return <p role="alert">{tm(SAFE_REQUEST_ERROR)}</p>;
   }
 
   if (!request) notFound();
@@ -60,71 +58,86 @@ export default async function TrackRequestPage({
     request.end_date,
     saudiTodayIsoDate(),
   );
+  const statusHint: Partial<Record<string, string>> = copy.statusHint;
+  const plate = vehicle ? plateLabel(vehicle) : "";
+  const plateText = plate === "Plate unavailable" ? vehicleCopy.plateUnavailable : plate;
 
   return (
     <div className="space-y-6">
       <header className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-            Request {reference}
+            {copy.title(reference)}
           </h1>
           <AuthorizationStatusBadge
             status={status}
-            label={approvalStatusLabel({ ...request, status })}
+            label={approvalStatusLabel({ ...request, status }, locale)}
           />
         </div>
         <p className="text-sm text-slate-600">
           {status === "pending" || status === "rejected"
-            ? approvalStatusLabel({ ...request, status })
-            : (STATUS_HINT[status] ?? "")}
+            ? approvalStatusLabel({ ...request, status }, locale)
+            : (statusHint[status] ?? "")}
         </p>
         <p className="inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500">
           <Copy className="size-3.5" />
-          Bookmark this page, or look up every request for your badge on{" "}
+          {copy.bookmarkPrefix}{" "}
           <Link
             href="/status"
             className="font-semibold text-[#e30613] underline-offset-4 hover:underline"
           >
-            Track requests
+            {copy.trackRequests}
           </Link>
-          .
+          {copy.bookmarkSuffix}
         </p>
       </header>
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <header className="border-b border-slate-100 px-5 py-4">
           <h2 className="text-sm font-semibold tracking-tight text-slate-900">
-            Request details
+            {copy.detailsHeading}
           </h2>
         </header>
         <dl className="grid gap-x-6 gap-y-4 px-5 py-5 sm:grid-cols-2">
-          <Field label="Requester" value={employee?.full_name ?? "—"} />
-          <Field label="Badge" value={employee?.badge ?? "—"} />
+          <Field label={copy.requester} value={employee?.full_name ?? "—"} />
+          <Field label={copy.badge} value={employee?.badge ?? "—"} />
           <Field
-            label="Vehicle"
+            label={copy.vehicle}
             value={
               vehicle
-                ? `${vehicle.door_number ? `Door ${vehicle.door_number} — ` : "Door No. unavailable — "}${plateLabel(vehicle)} — ${vehicle.make} ${vehicle.model}`
+                ? `${vehicle.door_number ? vehicleCopy.door(vehicle.door_number) : vehicleCopy.doorUnavailable} — ${plateText} — ${vehicle.make} ${vehicle.model}`
                 : "—"
             }
           />
-          <Field label="Location" value={request.location ?? "—"} />
+          <Field label={copy.location} value={request.location ?? "—"} />
           <Field
-            label="Justification"
+            label={copy.justification}
             value={request.justification ?? request.purpose ?? "—"}
           />
-          <Field label="Duration" value={request.duration_label} />
+          <Field label={copy.duration} value={request.duration_label} />
           <Field
-            label="Window"
-            value={`${request.start_date} → ${request.end_date}`}
+            label={copy.window}
+            value={`${request.start_date} ${t.common.dateRangeSeparator} ${request.end_date}`}
           />
-          <Field label="Usage after" value={String(usageAfter)} />
+          <div>
+            <dt className="text-[11px] font-semibold tracking-[0.14em] text-slate-400 uppercase">
+              {t.common.extendedTime.usageAfter}
+            </dt>
+            <dd className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-800">
+              {String(usageAfter)}
+              {isExtendedUsageAfter(String(usageAfter)) ? (
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                  {t.common.extendedTime.badge}
+                </span>
+              ) : null}
+            </dd>
+          </div>
           {request.purpose ? (
-            <Field label="Purpose" value={request.purpose} />
+            <Field label={copy.purpose} value={request.purpose} />
           ) : null}
           {request.rejection_reason ? (
             <Field
-              label="Rejection reason"
+              label={copy.rejectionReason}
               value={request.rejection_reason}
               tone="danger"
             />
@@ -156,15 +169,15 @@ export default async function TrackRequestPage({
           render={<Link href="/status" />}
         >
           <ClipboardList className="size-3.5" />
-          All my requests
+          {copy.allRequests}
         </Button>
         <Button
           variant="outline"
           className="rounded-full"
           render={<Link href="/request" />}
         >
-          <ArrowLeft className="size-3.5" />
-          Submit another request
+          <ArrowLeft className="size-3.5 rtl:rotate-180" />
+          {copy.submitAnother}
         </Button>
       </div>
     </div>

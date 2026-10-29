@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useI18n } from "@/lib/i18n/client";
 
 type ApprovalActionsProps = {
   authorizationId: string;
@@ -32,6 +33,8 @@ export function ApprovalActions({
   authorizationId,
   conflict = null,
 }: ApprovalActionsProps) {
+  const { t, tm, locale } = useI18n();
+  const copy = t.approvals.decision;
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -42,18 +45,18 @@ export function ApprovalActions({
     startTransition(async () => {
       const result = await approveAuthorization({ id: authorizationId });
       if (!result.ok) {
-        setError(result.error);
-        toast.error(result.error);
+        setError(tm(result.error));
+        toast.error(tm(result.error));
         return;
       }
-      toast.success(approvalSuccessMessage(result.data));
+      toast.success(approvalSuccessMessage(result.data, locale));
     });
   }
 
   function onReject() {
     const trimmed = reason.trim();
     if (!trimmed) {
-      setError("Rejection reason is required");
+      setError(copy.reasonRequired);
       return;
     }
 
@@ -64,11 +67,11 @@ export function ApprovalActions({
         rejection_reason: trimmed,
       });
       if (!result.ok) {
-        setError(result.error);
-        toast.error(result.error);
+        setError(tm(result.error));
+        toast.error(tm(result.error));
         return;
       }
-      toast.success("Request rejected");
+      toast.success(copy.rejected);
       setRejectOpen(false);
       setReason("");
     });
@@ -86,7 +89,7 @@ export function ApprovalActions({
           onClick={onApprove}
         >
           <Check className="size-3.5" />
-          {pending ? "Working…" : "Approve"}
+          {pending ? copy.working : copy.approve}
         </Button>
         <Button
           type="button"
@@ -100,7 +103,7 @@ export function ApprovalActions({
           }}
         >
           <X className="size-3.5" />
-          Reject
+          {copy.reject}
         </Button>
       </div>
 
@@ -125,20 +128,17 @@ export function ApprovalActions({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Reject authorization</DialogTitle>
-            <DialogDescription>
-              A rejection reason is required and will be shared with the
-              requester.
-            </DialogDescription>
+            <DialogTitle>{copy.rejectTitle}</DialogTitle>
+            <DialogDescription>{copy.rejectDescription}</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="rejection_reason">Reason</Label>
+            <Label htmlFor="rejection_reason">{copy.reasonLabel}</Label>
             <Textarea
               id="rejection_reason"
               value={reason}
               disabled={pending}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Explain why this request is rejected"
+              placeholder={copy.reasonPlaceholder}
               className="min-h-28 rounded-xl"
               required
             />
@@ -156,7 +156,7 @@ export function ApprovalActions({
               disabled={pending}
               onClick={() => setRejectOpen(false)}
             >
-              Cancel
+              {copy.cancel}
             </Button>
             <Button
               type="button"
@@ -165,7 +165,7 @@ export function ApprovalActions({
               disabled={pending}
               onClick={onReject}
             >
-              {pending ? "Rejecting…" : "Confirm rejection"}
+              {pending ? copy.rejecting : copy.confirmReject}
             </Button>
           </DialogFooter>
         </DialogContent>

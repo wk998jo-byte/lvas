@@ -7,8 +7,11 @@ import { requestPasswordReset } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useI18n } from "@/lib/i18n/client";
 
 export function ForgotPasswordForm() {
+  const { t, tm } = useI18n();
+  const copy = t.auth.forgot;
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<"email" | "pending-setup" | null>(null);
@@ -20,7 +23,7 @@ export function ForgotPasswordForm() {
     startTransition(async () => {
       const result = await requestPasswordReset({ email });
       if (!result.ok) {
-        setError(result.error);
+        setError(tm(result.error));
         return;
       }
       setSent(result.data.emailed ? "email" : "pending-setup");
@@ -36,30 +39,28 @@ export function ForgotPasswordForm() {
       <div className="relative space-y-6">
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-            Forgot password
+            {copy.title}
           </h1>
           <p className="text-sm text-slate-500">
-            Enter the email for your LVAS account. If it can sign in, we will
-            send a link to choose a new password.
+            {copy.description}
           </p>
         </div>
         {sent === "email" ? (
           <p className="text-sm text-emerald-700" role="status">
-            If this email can sign in, a reset link is on its way. The link
-            expires in 30 minutes.
+            {copy.sent}
           </p>
         ) : sent === "pending-setup" ? (
           <p className="text-sm text-slate-600" role="status">
-            Password reset email is not configured on this server yet. Contact
-            the fleet administrator.
+            {copy.notConfigured}
           </p>
         ) : (
           <form className="space-y-4" onSubmit={onSubmit}>
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{copy.email}</Label>
               <Input
                 id="email"
                 type="email"
+                dir="ltr"
                 autoComplete="email"
                 required
                 value={email}
@@ -78,7 +79,7 @@ export function ForgotPasswordForm() {
               className="h-11 w-full rounded-xl"
               disabled={pending}
             >
-              {pending ? "Sending…" : "Send reset link"}
+              {pending ? copy.submitting : copy.submit}
             </Button>
           </form>
         )}
@@ -87,7 +88,7 @@ export function ForgotPasswordForm() {
             href="/login"
             className="font-medium text-[#e30613] underline-offset-4 hover:underline"
           >
-            Back to sign in
+            {copy.backToSignIn}
           </Link>
         </p>
       </div>

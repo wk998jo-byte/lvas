@@ -48,7 +48,8 @@ import {
   effectiveAuthorizationStatus,
   isEffectivelyApproved,
 } from "@/lib/authorizations/effective-status";
-import { saudiTodayIsoDate } from "@/lib/business-date";
+import { isExtendedUsageAfter, saudiTodayIsoDate } from "@/lib/business-date";
+import { useI18n } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 import type { VisibleAuthorizationConflict } from "@/lib/authorizations/overlap";
 import type {
@@ -75,15 +76,9 @@ type FilterKey =
 /** `queue` decides on pending requests; `history` reviews decided ones. */
 type TableMode = "queue" | "history";
 
-const MODE_FILTERS: Record<TableMode, { key: FilterKey; label: string }[]> = {
+const MODE_FILTERS: Record<TableMode, FilterKey[]> = {
   queue: [],
-  history: [
-    { key: "all", label: "All" },
-    { key: "approved", label: "Approved" },
-    { key: "rejected", label: "Rejected" },
-    { key: "expired", label: "Expired" },
-    { key: "cancelled", label: "Cancelled" },
-  ],
+  history: ["all", "approved", "rejected", "expired", "cancelled"],
 };
 
 type ApprovalsTableProps = {
@@ -106,9 +101,9 @@ function overlapsExportPeriod(
   return true;
 }
 
-function formatDate(value: string) {
+function formatDate(value: string, intl: string) {
   try {
-    return new Intl.DateTimeFormat("en-GB", {
+    return new Intl.DateTimeFormat(intl, {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -132,6 +127,9 @@ export function ApprovalsTable({
   mode = "queue",
   canEndAuthorization = false,
 }: ApprovalsTableProps) {
+  const { t, tm, locale, intl } = useI18n();
+  const copy = t.approvals.table;
+  const decision = t.approvals.decision;
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [exportFrom, setExportFrom] = useState("");
@@ -225,10 +223,10 @@ export function ApprovalsTable({
     startTransition(async () => {
       const result = await approveAuthorization({ id });
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(tm(result.error));
         return;
       }
-      toast.success(approvalSuccessMessage(result.data));
+      toast.success(approvalSuccessMessage(result.data, locale));
     });
   }
 
@@ -236,7 +234,7 @@ export function ApprovalsTable({
     if (!rejectId) return;
     const trimmed = reason.trim();
     if (!trimmed) {
-      toast.error("Rejection reason is required");
+      toast.error(decision.reasonRequired);
       return;
     }
 
@@ -246,10 +244,10 @@ export function ApprovalsTable({
         rejection_reason: trimmed,
       });
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(tm(result.error));
         return;
       }
-      toast.success("Request rejected");
+      toast.success(decision.rejected);
       setRejectId(null);
       setReason("");
     });
@@ -260,39 +258,41 @@ export function ApprovalsTable({
       <div className="glass-panel flex flex-col gap-4 rounded-2xl p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative w-full max-w-md">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-slate-400" />
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search requester, badge, door number, plate, department…"
-              className="h-11 rounded-xl border-slate-200/80 bg-white/90 pl-10"
+              placeholder={copy.searchPlaceholder}
+              className="h-11 rounded-xl border-slate-200/80 bg-white/90 ps-10"
             />
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <p className="text-sm text-slate-500">
-              Showing{" "}
+              {copy.showing}{" "}
               <span className="font-semibold text-slate-800">
                 {filtered.length}
               </span>
             </p>
             <label className="flex flex-col gap-1 text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
-              From
+              {copy.from}
               <Input
                 type="date"
+                dir="ltr"
                 value={exportFrom}
                 onChange={(event) => setExportFrom(event.target.value)}
                 className="h-9 w-[9.5rem] rounded-xl"
-                aria-label="Export from date"
+                aria-label={copy.exportFromAria}
               />
             </label>
             <label className="flex flex-col gap-1 text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
-              To
+              {copy.to}
               <Input
                 type="date"
+                dir="ltr"
                 value={exportTo}
                 onChange={(event) => setExportTo(event.target.value)}
                 className="h-9 w-[9.5rem] rounded-xl"
-                aria-label="Export to date"
+                aria-label={copy.exportToAria}
               />
             </label>
             <ExportCsvButton
@@ -324,6 +324,9 @@ export function ApprovalsTable({
                   typeof request.usage_after === "string"
                     ? request.usage_after.slice(0, 5)
                     : request.usage_after,
+                extended_time: isExtendedUsageAfter(request.usage_after)
+                  ? "Yes"
+                  : "No",
                 purpose: request.purpose ?? "",
                 rejection_reason: request.rejection_reason ?? "",
                 created_at: request.created_at,
@@ -335,12 +338,11 @@ export function ApprovalsTable({
           </div>
           {periodInvalid ? (
             <p className="text-sm text-destructive" role="alert">
-              The start date is after the end date.
+              {copy.periodInvalid}
             </p>
           ) : exportFrom || exportTo ? (
             <p className="text-sm text-slate-500">
-              Export includes {exportRows.length} request
-              {exportRows.length === 1 ? "" : "s"} in this period.
+              {copy.exportCount(exportRows.length)}
             </p>
           ) : null}
         </div>
@@ -348,13 +350,13 @@ export function ApprovalsTable({
         <div
           className={cn("flex flex-wrap gap-2", filters.length === 0 && "hidden")}
         >
-          {filters.map((item) => {
-            const active = filter === item.key;
+          {filters.map((key) => {
+            const active = filter === key;
             return (
               <button
-                key={item.key}
+                key={key}
                 type="button"
-                onClick={() => setFilter(item.key)}
+                onClick={() => setFilter(key)}
                 className={cn(
                   "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-all",
                   active
@@ -362,7 +364,7 @@ export function ApprovalsTable({
                     : "border-slate-200 bg-white/80 text-slate-600 hover:border-slate-300 hover:bg-white",
                 )}
               >
-                {item.label}
+                {key === "all" ? copy.all : t.common.status[key]}
                 <span
                   className={cn(
                     "rounded-full px-1.5 py-0.5 text-[11px] tabular-nums",
@@ -371,7 +373,7 @@ export function ApprovalsTable({
                       : "bg-slate-100 text-slate-500",
                   )}
                 >
-                  {counts[item.key]}
+                  {counts[key]}
                 </span>
               </button>
             );
@@ -383,14 +385,12 @@ export function ApprovalsTable({
         <EmptyState
           icon={ClipboardCheck}
           title={
-            mode === "queue"
-              ? "No pending requests right now"
-              : "Nothing in the history yet"
+            mode === "queue" ? copy.emptyQueueTitle : copy.emptyHistoryTitle
           }
           description={
             mode === "queue"
-              ? "All caught up! New submissions land here for your decision."
-              : "Approved, rejected, cancelled, and expired requests appear here."
+              ? copy.emptyQueueDescription
+              : copy.emptyHistoryDescription
           }
         />
       ) : (
@@ -417,13 +417,14 @@ export function ApprovalsTable({
               request.end_date,
               saudiToday,
             );
+            const extended = isExtendedUsageAfter(request.usage_after);
             const conflict = request.activeConflict ?? null;
             const plate = vehicle
-              ? `${vehicle.door_number ? `Door ${vehicle.door_number} · ` : ""}${plateLabel(vehicle)}`
-              : "Vehicle";
+              ? `${vehicle.door_number ? `${copy.door(vehicle.door_number)} · ` : ""}${plateLabel(vehicle)}`
+              : copy.vehicleFallback;
             const model = vehicle
               ? `${vehicle.make} ${vehicle.model}`
-              : "Details unavailable";
+              : copy.detailsUnavailable;
 
             return (
               <article
@@ -457,13 +458,13 @@ export function ApprovalsTable({
                             status === "pending"
                               ? undefined
                               : status === "rejected"
-                                ? approvalStatusLabel({ ...request, status })
+                                ? approvalStatusLabel({ ...request, status }, locale)
                               : undefined
                           }
                         />
                         {requester.badge ? (
                           <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-                            Badge {requester.badge}
+                            {copy.badge(requester.badge)}
                           </span>
                         ) : null}
                       </div>
@@ -513,7 +514,7 @@ export function ApprovalsTable({
                           onClick={() => onApprove(request.id)}
                         >
                           <Check className="size-3.5" />
-                          Approve
+                          {decision.approve}
                         </Button>
                         <Button
                           type="button"
@@ -527,7 +528,7 @@ export function ApprovalsTable({
                           }}
                         >
                           <X className="size-3.5" />
-                          Reject
+                          {decision.reject}
                         </Button>
                       </>
                     ) : null}
@@ -540,8 +541,8 @@ export function ApprovalsTable({
                       className="rounded-full"
                       render={<Link href={`/history/${request.id}`} />}
                     >
-                      Details
-                      <ArrowUpRight className="size-3.5" />
+                      {copy.details}
+                      <ArrowUpRight className="size-3.5 rtl:-scale-x-100" />
                     </Button>
                   </div>
                 </div>
@@ -550,8 +551,9 @@ export function ApprovalsTable({
                   <div className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2.5 text-sm text-slate-600">
                     <CalendarRange className="size-4 shrink-0 text-slate-400" />
                     <span className="truncate">
-                      {formatDate(request.start_date)} →{" "}
-                      {formatDate(request.end_date)}
+                      {formatDate(request.start_date, intl)}{" "}
+                      {t.common.dateRangeSeparator}{" "}
+                      {formatDate(request.end_date, intl)}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2.5 text-sm text-slate-600">
@@ -560,7 +562,14 @@ export function ApprovalsTable({
                   </div>
                   <div className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2.5 text-sm text-slate-600">
                     <Clock3 className="size-4 shrink-0 text-slate-400" />
-                    <span>After {usage}</span>
+                    <span>
+                      {t.common.extendedTime.usageAfter} {usage}
+                    </span>
+                    {extended ? (
+                      <span className="rounded-full border border-[#e30613]/20 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-[#e30613]">
+                        {t.common.extendedTime.badge}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
               </article>
@@ -580,20 +589,17 @@ export function ApprovalsTable({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Reject request</DialogTitle>
-            <DialogDescription>
-              A rejection reason is required and will be shared with the
-              requester.
-            </DialogDescription>
+            <DialogTitle>{copy.rejectTitle}</DialogTitle>
+            <DialogDescription>{decision.rejectDescription}</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="quick_rejection_reason">Reason</Label>
+            <Label htmlFor="quick_rejection_reason">{decision.reasonLabel}</Label>
             <Textarea
               id="quick_rejection_reason"
               value={reason}
               disabled={pending}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Explain why this request is rejected"
+              placeholder={decision.reasonPlaceholder}
               className="min-h-28 rounded-xl"
             />
           </div>
@@ -605,7 +611,7 @@ export function ApprovalsTable({
               disabled={pending}
               onClick={() => setRejectId(null)}
             >
-              Cancel
+              {decision.cancel}
             </Button>
             <Button
               type="button"
@@ -614,7 +620,7 @@ export function ApprovalsTable({
               disabled={pending}
               onClick={onRejectConfirm}
             >
-              {pending ? "Rejecting…" : "Confirm rejection"}
+              {pending ? decision.rejecting : decision.confirmReject}
             </Button>
           </DialogFooter>
         </DialogContent>

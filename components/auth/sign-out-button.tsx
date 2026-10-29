@@ -6,8 +6,10 @@ import { toast } from "sonner";
 
 import { signOut } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/lib/i18n/client";
 
 export function SignOutButton() {
+  const { t, tm } = useI18n();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -22,20 +24,20 @@ export function SignOutButton() {
           try {
             const result = await signOut();
             if (!result.ok) {
-              toast.error(result.error);
+              toast.error(tm(result.error));
               return;
             }
             router.replace("/login");
             router.refresh();
           } catch (error) {
             toast.error(
-              error instanceof Error ? error.message : "Sign out failed",
+              error instanceof Error ? tm(error.message) : t.auth.signOut.failed,
             );
           }
         });
       }}
     >
-      {pending ? "Signing out…" : "Sign out"}
+      {pending ? t.auth.signOut.submitting : t.auth.signOut.submit}
     </Button>
   );
 }

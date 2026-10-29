@@ -1,4 +1,6 @@
 import roster from "@/lib/approvals/logistics-roster.json";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/config";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 
 export const PROJECT_LOCATIONS = [
   "Dhahran Base",
@@ -30,8 +32,9 @@ export function isProjectLocation(value: string): value is ProjectLocation {
   return (PROJECT_LOCATIONS as readonly string[]).includes(value);
 }
 
-export function pendingStageLabel(stage: number): string {
-  return stage === 1 ? "Awaiting logistics" : "Awaiting final approval";
+export function pendingStageLabel(stage: number, locale: Locale = DEFAULT_LOCALE): string {
+  const { approval } = getDictionary(locale).common;
+  return stage === 1 ? approval.stageAwaitingLogistics : approval.stageAwaitingFinal;
 }
 
 export type LogisticsRosterEntry = {

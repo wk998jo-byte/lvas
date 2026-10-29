@@ -20,6 +20,7 @@ import {
 } from "@/components/dashboard/table-pagination";
 import type { Vehicle } from "@/types/database";
 import { plateFieldValue } from "@/components/vehicles/plate-label";
+import { useI18n } from "@/lib/i18n/client";
 import { matchesVehicleSearch } from "@/lib/vehicles/identity";
 
 type VehicleDirectoryProps = {
@@ -27,6 +28,8 @@ type VehicleDirectoryProps = {
 };
 
 export function VehicleDirectory({ vehicles }: VehicleDirectoryProps) {
+  const { t, locale } = useI18n();
+  const copy = t.vehicles.table;
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(PAGE_SIZES[0]);
@@ -54,8 +57,8 @@ export function VehicleDirectory({ vehicles }: VehicleDirectoryProps) {
     return (
       <EmptyState
         icon={Car}
-        title="No vehicles yet"
-        description="Active light vehicles will appear here once the fleet directory is populated."
+        title={copy.noVehiclesTitle}
+        description={copy.noVehiclesDirectoryDescription}
       />
     );
   }
@@ -64,17 +67,17 @@ export function VehicleDirectory({ vehicles }: VehicleDirectoryProps) {
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full max-w-md">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+          <Search className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-slate-400" />
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search door number, plate, make, model, color…"
-            className="h-10 rounded-xl border-slate-200 pl-10"
+            placeholder={copy.searchPlaceholder}
+            className="h-10 rounded-xl border-slate-200 ps-10"
           />
         </div>
         <p className="text-sm text-slate-500">
           <span className="font-medium text-slate-700">{filtered.length}</span>{" "}
-          of {vehicles.length} vehicle{vehicles.length === 1 ? "" : "s"}
+          {copy.ofTotal(vehicles.length)}
         </p>
       </div>
 
@@ -82,8 +85,8 @@ export function VehicleDirectory({ vehicles }: VehicleDirectoryProps) {
         <div className="p-4">
           <EmptyState
             icon={Search}
-            title="No matches"
-            description="Try another door number, plate, make, or model."
+            title={copy.noMatchesTitle}
+            description={copy.noMatchesDescription}
           />
         </div>
       ) : (
@@ -91,12 +94,12 @@ export function VehicleDirectory({ vehicles }: VehicleDirectoryProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Door number</TableHead>
-                <TableHead>Plate</TableHead>
-                <TableHead>Make &amp; model</TableHead>
-                <TableHead>Year</TableHead>
-                <TableHead>Color</TableHead>
-                <TableHead className="text-right">Details</TableHead>
+                <TableHead>{copy.doorNumber}</TableHead>
+                <TableHead>{copy.plate}</TableHead>
+                <TableHead>{copy.makeModel}</TableHead>
+                <TableHead>{copy.year}</TableHead>
+                <TableHead>{copy.color}</TableHead>
+                <TableHead className="text-end">{copy.details}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -106,7 +109,7 @@ export function VehicleDirectory({ vehicles }: VehicleDirectoryProps) {
                     {vehicle.door_number ?? "—"}
                   </TableCell>
                   <TableCell className="font-semibold text-slate-900">
-                    {plateFieldValue(vehicle)}
+                    {plateFieldValue(vehicle, locale)}
                   </TableCell>
                   <TableCell>
                     {vehicle.make} {vehicle.model}
@@ -117,13 +120,13 @@ export function VehicleDirectory({ vehicles }: VehicleDirectoryProps) {
                   <TableCell className="text-slate-500">
                     {vehicle.color ?? "—"}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-end">
                     <Link
                       href={`/vehicles/${vehicle.id}`}
                       className="inline-flex items-center gap-1 text-sm font-medium text-[#e30613] hover:underline"
                     >
-                      View
-                      <ArrowUpRight className="size-3.5" />
+                      {copy.view}
+                      <ArrowUpRight className="size-3.5 rtl:-scale-x-100" />
                     </Link>
                   </TableCell>
                 </TableRow>

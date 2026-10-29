@@ -6,6 +6,8 @@ import { QRCodeSVG } from "qrcode.react";
 import { BrandLogo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { plateLabel } from "@/components/vehicles/plate-label";
+import { isExtendedUsageAfter } from "@/lib/business-date";
+import { useI18n } from "@/lib/i18n/client";
 
 export type PublicPassData = {
   id: string;
@@ -21,10 +23,15 @@ export type PublicPassData = {
 };
 
 export function PublicPass({ pass }: { pass: PublicPassData }) {
+  const { t } = useI18n();
+  const copy = t.public.pass;
   const plate = plateLabel({
     plate_number: pass.plate,
     door_number: pass.doorNumber,
   });
+  const usageAfter = isExtendedUsageAfter(pass.usageAfter)
+    ? `${pass.usageAfter} · ${t.common.extendedTime.badge}`
+    : pass.usageAfter;
   return (
     <div className="space-y-3">
       <Button
@@ -33,7 +40,7 @@ export function PublicPass({ pass }: { pass: PublicPassData }) {
         onClick={() => window.print()}
       >
         <Printer className="size-4" />
-        Print pass
+        {copy.print}
       </Button>
 
       <div
@@ -42,28 +49,31 @@ export function PublicPass({ pass }: { pass: PublicPassData }) {
       >
         <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
           <BrandLogo variant="compact" tone="light" />
-          <div className="text-right">
+          <div className="text-end">
             <p className="text-[10px] tracking-[0.2em] text-slate-500 uppercase">
-              Gate authorization
+              {copy.gateAuthorization}
             </p>
-            <p className="text-sm font-semibold text-[#e30613]">APPROVED</p>
+            <p className="text-sm font-semibold text-[#e30613]">{copy.approved}</p>
           </div>
         </div>
 
         <div className="grid gap-4 p-4 md:grid-cols-[1fr_140px]">
           <div className="space-y-3">
-            <PassField label="Driver / requester" value={pass.driver} />
+            <PassField label={copy.driver} value={pass.driver} />
             <div className="grid gap-3 sm:grid-cols-2">
-              <PassField label="Badge" value={pass.badge} />
+              <PassField label={copy.badge} value={pass.badge} />
               <PassField
-                label="Door number"
-                value={pass.doorNumber ?? "Unavailable"}
+                label={copy.doorNumber}
+                value={pass.doorNumber ?? t.public.vehicle.unavailable}
               />
-              <PassField label="Vehicle plate" value={plate} />
-              <PassField label="Vehicle" value={pass.vehicle} />
-              <PassField label="Usage after" value={pass.usageAfter} />
-              <PassField label="Valid from" value={pass.startDate} />
-              <PassField label="Expires" value={pass.endDate} accent />
+              <PassField
+                label={copy.vehiclePlate}
+                value={plate === "Plate unavailable" ? t.public.vehicle.plateUnavailable : plate}
+              />
+              <PassField label={copy.vehicle} value={pass.vehicle} />
+              <PassField label={t.common.extendedTime.usageAfter} value={usageAfter} />
+              <PassField label={copy.validFrom} value={pass.startDate} />
+              <PassField label={copy.expires} value={pass.endDate} accent />
             </div>
           </div>
 
@@ -72,19 +82,17 @@ export function PublicPass({ pass }: { pass: PublicPassData }) {
               <QRCodeSVG value={pass.verificationUrl} size={120} level="M" includeMargin />
             ) : (
               <p role="alert" className="text-center text-xs font-semibold text-red-700">
-                Live QR verification is unavailable. Contact the fleet administrator.
+                {copy.qrUnavailable}
               </p>
             )}
             <p className="text-center text-[10px] text-slate-500">
-              Scan for live gate verification
+              {copy.scanHint}
             </p>
           </div>
         </div>
 
         <div className="border-t border-slate-200 bg-slate-50 px-4 py-2 text-[11px] text-slate-500">
-          LVAS | Bin Quraya — after-hours light vehicle authorization. Present
-          this pass with company ID. Security must scan the QR to confirm current
-          validity before entry.
+          {copy.footer}
         </div>
       </div>
     </div>

@@ -4,7 +4,7 @@
  * Usage: node scripts/test-logistics-location-access.mjs
  */
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
@@ -127,6 +127,17 @@ function load(file) {
       notFound: () => { throw Object.assign(new Error("Not found"), { code: 404 }); },
     };
     if (name === "react/jsx-runtime") return { jsx, jsxs: jsx, Fragment: "fragment" };
+    if (name === "@/lib/i18n/server") return {
+      getLocale: async () => "en",
+      getI18n: async () => ({
+        locale: "en", dir: "ltr", intl: "en-GB", tm: (message) => message,
+        t: load("lib/i18n/dictionaries/index.ts").getDictionary("en"),
+      }),
+    };
+    if (name.startsWith("@/lib/i18n/")) {
+      const stem = name.slice(2);
+      return load([`${stem}.ts`, `${stem}/index.ts`].find((file) => existsSync(path.join(root, file))));
+    }
     return components;
   };
   vm.runInNewContext(compiled, { module: loaded, exports: loaded.exports, require }, { filename: file });

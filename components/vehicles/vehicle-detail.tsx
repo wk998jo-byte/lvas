@@ -19,12 +19,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { DEFAULT_LOCALE, intlLocale, type Locale } from "@/lib/i18n/config";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 import { cn } from "@/lib/utils";
-import { plateLabel, vehicleIdentityLabel } from "@/components/vehicles/plate-label";
+import { localizedPlateLabel, vehicleIdentityLabel } from "@/components/vehicles/plate-label";
 import type { Vehicle } from "@/types/database";
 
 type VehicleDetailViewProps = {
   vehicle: Vehicle;
+  locale?: Locale;
 };
 
 function InfoTile({
@@ -74,9 +77,9 @@ function InfoTile({
   );
 }
 
-function formatDate(value: string) {
+function formatDate(value: string, locale: Locale) {
   try {
-    return new Intl.DateTimeFormat("en-GB", {
+    return new Intl.DateTimeFormat(intlLocale(locale), {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -86,7 +89,12 @@ function formatDate(value: string) {
   }
 }
 
-export function VehicleDetailView({ vehicle }: VehicleDetailViewProps) {
+export function VehicleDetailView({
+  vehicle,
+  locale = DEFAULT_LOCALE,
+}: VehicleDetailViewProps) {
+  const t = getDictionary(locale).vehicles;
+  const copy = t.detail;
   return (
     <div className="space-y-6 animate-rise">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -96,8 +104,8 @@ export function VehicleDetailView({ vehicle }: VehicleDetailViewProps) {
           className="rounded-full"
           render={<Link href="/vehicles" />}
         >
-          <ArrowLeft className="size-3.5" />
-          Back to fleet
+          <ArrowLeft className="size-3.5 rtl:rotate-180" />
+          {copy.backToFleet}
         </Button>
         {vehicle.is_active ? (
           <Button
@@ -106,7 +114,7 @@ export function VehicleDetailView({ vehicle }: VehicleDetailViewProps) {
             className="rounded-full"
             render={<Link href="/request" target="_blank" />}
           >
-            Public request form
+            {copy.publicRequestForm}
           </Button>
         ) : null}
       </div>
@@ -118,7 +126,7 @@ export function VehicleDetailView({ vehicle }: VehicleDetailViewProps) {
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -top-24 right-0 size-56 rounded-full bg-[#e30613]/10 blur-3xl"
+          className="pointer-events-none absolute -top-24 end-0 size-56 rounded-full bg-[#e30613]/10 blur-3xl"
         />
 
         <div className="relative flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
@@ -135,17 +143,17 @@ export function VehicleDetailView({ vehicle }: VehicleDetailViewProps) {
                       : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-50",
                   )}
                 >
-                  {vehicle.is_active ? "Active in fleet" : "Inactive"}
+                  {vehicle.is_active ? copy.activeInFleet : copy.inactive}
                 </Badge>
                 <span className="text-xs font-medium tracking-[0.18em] text-slate-400 uppercase">
-                  Light vehicle
+                  {copy.lightVehicle}
                 </span>
               </div>
               <h1 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">
-                {vehicle.door_number ? `Door ${vehicle.door_number}` : "Vehicle"}
+                {vehicle.door_number ? t.identity.door(vehicle.door_number) : copy.vehicleFallback}
               </h1>
               <p className="text-base text-slate-600 md:text-lg">
-                {plateLabel(vehicle)} ·{" "}
+                {localizedPlateLabel(vehicle, locale)} ·{" "}
                 {vehicle.make} {vehicle.model}
                 {vehicle.year ? ` · ${vehicle.year}` : ""}
               </p>
@@ -154,7 +162,7 @@ export function VehicleDetailView({ vehicle }: VehicleDetailViewProps) {
 
           <div className="rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-sm text-slate-500 shadow-sm">
             <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-400 uppercase">
-              Directory ID
+              {copy.directoryId}
             </p>
             <p className="mt-1 font-mono text-xs text-slate-700">{vehicle.id}</p>
           </div>
@@ -164,24 +172,24 @@ export function VehicleDetailView({ vehicle }: VehicleDetailViewProps) {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <InfoTile
           icon={Hash}
-          label="Vehicle identifiers"
-          value={vehicleIdentityLabel(vehicle)}
+          label={copy.identifiers}
+          value={vehicleIdentityLabel(vehicle, locale)}
           accent
         />
         <InfoTile
           icon={Car}
-          label="Make & model"
+          label={copy.makeModel}
           value={`${vehicle.make} ${vehicle.model}`}
         />
         <InfoTile
           icon={Calendar}
-          label="Model year"
-          value={vehicle.year?.toString() ?? "Not set"}
+          label={copy.modelYear}
+          value={vehicle.year?.toString() ?? copy.notSet}
         />
         <InfoTile
           icon={Palette}
-          label="Color"
-          value={vehicle.color?.trim() || "Not set"}
+          label={copy.color}
+          value={vehicle.color?.trim() || copy.notSet}
         />
       </section>
 
@@ -190,11 +198,9 @@ export function VehicleDetailView({ vehicle }: VehicleDetailViewProps) {
           <CardHeader className="border-b border-slate-100">
             <div className="flex items-center gap-2">
               <FileText className="size-4 text-[#e30613]" />
-              <CardTitle>Notes</CardTitle>
+              <CardTitle>{copy.notes}</CardTitle>
             </div>
-            <CardDescription>
-              Operational notes attached to this vehicle record.
-            </CardDescription>
+            <CardDescription>{copy.notesDescription}</CardDescription>
           </CardHeader>
           <CardContent className="pt-5">
             {vehicle.notes?.trim() ? (
@@ -203,7 +209,7 @@ export function VehicleDetailView({ vehicle }: VehicleDetailViewProps) {
               </p>
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center text-sm text-slate-500">
-                No notes recorded for this vehicle.
+                {copy.noNotes}
               </div>
             )}
           </CardContent>
@@ -213,33 +219,33 @@ export function VehicleDetailView({ vehicle }: VehicleDetailViewProps) {
           <CardHeader className="border-b border-slate-100">
             <div className="flex items-center gap-2">
               <ShieldCheck className="size-4 text-[#e30613]" />
-              <CardTitle>Record status</CardTitle>
+              <CardTitle>{copy.recordStatus}</CardTitle>
             </div>
-            <CardDescription>Directory metadata and availability.</CardDescription>
+            <CardDescription>{copy.recordStatusDescription}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pt-5">
             <div className="flex items-center justify-between rounded-xl border border-slate-200/80 bg-white/70 px-3 py-3">
               <div className="flex items-center gap-2 text-sm text-slate-600">
                 <Clock3 className="size-4 text-slate-400" />
-                Added
+                {copy.added}
               </div>
               <span className="text-sm font-medium text-slate-900">
-                {formatDate(vehicle.created_at)}
+                {formatDate(vehicle.created_at, locale)}
               </span>
             </div>
             <div className="flex items-center justify-between rounded-xl border border-slate-200/80 bg-white/70 px-3 py-3">
               <div className="flex items-center gap-2 text-sm text-slate-600">
                 <Clock3 className="size-4 text-slate-400" />
-                Last updated
+                {copy.lastUpdated}
               </div>
               <span className="text-sm font-medium text-slate-900">
-                {formatDate(vehicle.updated_at)}
+                {formatDate(vehicle.updated_at, locale)}
               </span>
             </div>
             <div className="rounded-xl border border-red-100 bg-red-50/70 px-3 py-3 text-sm text-slate-700">
               {vehicle.is_active
-                ? "This vehicle is available for after-hours authorization requests."
-                : "This vehicle is inactive and cannot be selected for new requests."}
+                ? copy.availableNote
+                : copy.inactiveNote}
             </div>
           </CardContent>
         </Card>

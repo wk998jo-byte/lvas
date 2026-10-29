@@ -2,6 +2,7 @@ import { Car, Shield } from "lucide-react";
 
 import { requireRole } from "@/lib/auth/guards";
 import { listVehicles } from "@/lib/db/queries";
+import { getI18n } from "@/lib/i18n/server";
 import { VehicleDirectory } from "@/components/vehicles/vehicle-directory";
 import { VehiclesAdminTable } from "@/components/vehicles/vehicles-admin-table";
 
@@ -10,6 +11,8 @@ export const dynamic = "force-dynamic";
 export default async function VehiclesPage() {
   const profile = await requireRole("admin");
   const isAdmin = profile.role === "admin";
+  const { t, tm } = await getI18n();
+  const copy = t.vehicles.page;
 
   let list;
   try {
@@ -17,10 +20,10 @@ export default async function VehiclesPage() {
   } catch (error) {
     return (
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Vehicles</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{copy.title}</h1>
         <p className="text-sm text-destructive" role="alert">
-          Failed to load vehicles:{" "}
-          {error instanceof Error ? error.message : "Unknown error"}
+          {copy.loadFailed}{" "}
+          {error instanceof Error ? tm(error.message) : copy.unknownError}
         </p>
       </div>
     );
@@ -38,7 +41,7 @@ export default async function VehiclesPage() {
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -top-20 right-8 size-40 rounded-full bg-[#e30613]/10 blur-3xl"
+          className="pointer-events-none absolute -top-20 end-8 size-40 rounded-full bg-[#e30613]/10 blur-3xl"
         />
 
         <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -49,15 +52,13 @@ export default async function VehiclesPage() {
               ) : (
                 <Car className="size-3.5" />
               )}
-              {isAdmin ? "Fleet management" : "Fleet directory"}
+              {isAdmin ? copy.fleetManagement : copy.fleetDirectory}
             </div>
             <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-              Vehicles
+              {copy.title}
             </h1>
             <p className="max-w-xl text-sm text-slate-500 md:text-base">
-              {isAdmin
-                ? "Browse, create, edit, and activate light vehicles for after-hours authorization."
-                : "Browse active light vehicles available for after-hours authorization."}
+              {isAdmin ? copy.adminDescription : copy.directoryDescription}
             </p>
           </div>
 
@@ -65,7 +66,7 @@ export default async function VehiclesPage() {
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 shadow-sm">
                 <p className="text-[11px] font-semibold tracking-[0.14em] text-slate-400 uppercase">
-                  Total
+                  {copy.total}
                 </p>
                 <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">
                   {list.length}
@@ -73,7 +74,7 @@ export default async function VehiclesPage() {
               </div>
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 shadow-sm">
                 <p className="text-[11px] font-semibold tracking-[0.14em] text-emerald-600/80 uppercase">
-                  Active
+                  {copy.active}
                 </p>
                 <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-700">
                   {activeCount}
@@ -81,7 +82,7 @@ export default async function VehiclesPage() {
               </div>
               <div className="rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 shadow-sm">
                 <p className="text-[11px] font-semibold tracking-[0.14em] text-slate-400 uppercase">
-                  Inactive
+                  {copy.inactive}
                 </p>
                 <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-700">
                   {inactiveCount}
@@ -91,7 +92,7 @@ export default async function VehiclesPage() {
           ) : (
             <div className="rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 shadow-sm">
               <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-400 uppercase">
-                Active fleet
+                {copy.activeFleet}
               </p>
               <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">
                 {activeCount}

@@ -35,6 +35,9 @@ import {
   decisionActorLabel,
   formatDecisionTime,
 } from "@/lib/approvals/presentation";
+import { isExtendedUsageAfter } from "@/lib/business-date";
+import { DEFAULT_LOCALE, intlLocale, type Locale } from "@/lib/i18n/config";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 import { plateFieldValue, plateLabel } from "@/components/vehicles/plate-label";
 
 export type AuthorizationDetailVehicle = Pick<
@@ -71,9 +74,9 @@ function formatUsageAfter(value: string): string {
   return typeof value === "string" ? value.slice(0, 5) : value;
 }
 
-function formatDate(value: string) {
+function formatDate(value: string, locale: Locale) {
   try {
-    return new Intl.DateTimeFormat("en-GB", {
+    return new Intl.DateTimeFormat(intlLocale(locale), {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -87,11 +90,13 @@ function InfoTile({
   icon: Icon,
   label,
   value,
+  badge,
   accent = false,
 }: {
   icon: typeof Car;
   label: string;
   value: string;
+  badge?: string;
   accent?: boolean;
 }) {
   return (
@@ -125,6 +130,11 @@ function InfoTile({
         )}
       >
         {value}
+        {badge ? (
+          <span className="ms-2 inline-flex rounded-full border border-[#e30613]/20 bg-white px-2 py-0.5 align-middle text-[11px] font-semibold text-[#e30613]">
+            {badge}
+          </span>
+        ) : null}
       </p>
     </div>
   );
@@ -159,6 +169,7 @@ type AuthorizationDetailViewProps = {
   title: string;
   actions?: ReactNode;
   viewerRole?: Profile["role"];
+  locale?: Locale;
 };
 
 export function AuthorizationDetailView({
@@ -168,7 +179,10 @@ export function AuthorizationDetailView({
   title,
   actions,
   viewerRole = "admin",
+  locale = DEFAULT_LOCALE,
 }: AuthorizationDetailViewProps) {
+  const t = getDictionary(locale);
+  const copy = t.approvals.detail;
   const vehicle = one(request.vehicles);
   const requester = resolveRequester({
     profile: request.requester,
@@ -180,8 +194,8 @@ export function AuthorizationDetailView({
   const rejectedBy = one(request.rejected_by);
   const usage = formatUsageAfter(request.usage_after);
   const plate = vehicle
-    ? `${vehicle.door_number ? `Door ${vehicle.door_number} · ` : ""}${plateLabel(vehicle)}`
-    : "Request";
+    ? `${vehicle.door_number ? `${t.approvals.table.door(vehicle.door_number)} · ` : ""}${plateLabel(vehicle)}`
+    : copy.requestFallback;
   const status = effectiveAuthorizationStatus(request.status, request.end_date);
 
   return (
@@ -193,8 +207,8 @@ export function AuthorizationDetailView({
           className="rounded-full"
           render={<Link href={breadcrumb.href} />}
         >
-          <ArrowLeft className="size-3.5" />
-          Back to {breadcrumb.label.toLowerCase()}
+          <ArrowLeft className="size-3.5 rtl:rotate-180" />
+          {copy.backTo(breadcrumb.label)}
         </Button>
         {actions ? <div className="shrink-0">{actions}</div> : null}
       </div>
@@ -206,17 +220,17 @@ export function AuthorizationDetailView({
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -top-24 right-0 size-56 rounded-full bg-[#e30613]/10 blur-3xl"
+          className="pointer-events-none absolute -top-24 end-0 size-56 rounded-full bg-[#e30613]/10 blur-3xl"
         />
 
         <div className="relative space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <AuthorizationStatusBadge
               status={status}
-              label={approvalDetailMessage(viewerRole, { ...request, status })}
+              label={approvalDetailMessage(viewerRole, { ...request, status }, locale)}
             />
             <span className="text-xs font-medium tracking-[0.18em] text-slate-400 uppercase">
-              After-hours authorization
+              {copy.eyebrow}
             </span>
           </div>
           <div className="space-y-2">
@@ -234,23 +248,28 @@ export function AuthorizationDetailView({
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <InfoTile
           icon={CalendarDays}
-          label="Start date"
-          value={formatDate(request.start_date)}
+          label={copy.startDate}
+          value={formatDate(request.start_date, locale)}
         />
         <InfoTile
           icon={CalendarDays}
-          label="End date"
-          value={formatDate(request.end_date)}
+          label={copy.endDate}
+          value={formatDate(request.end_date, locale)}
         />
         <InfoTile
           icon={Timer}
-          label="Duration"
+          label={copy.duration}
           value={request.duration_label}
         />
         <InfoTile
           icon={Clock3}
-          label="Usage after"
+          label={t.common.extendedTime.usageAfter}
           value={usage}
+          badge={
+            isExtendedUsageAfter(request.usage_after)
+              ? t.common.extendedTime.badge
+              : undefined
+          }
           accent
         />
       </section>
@@ -260,19 +279,17 @@ export function AuthorizationDetailView({
           <CardHeader className="border-b border-slate-100">
             <CardTitle className="flex items-center gap-2">
               <Car className="size-4 text-[#e30613]" />
-              Vehicle
+              {copy.vehicleTitle}
             </CardTitle>
-            <CardDescription>
-              Fleet vehicle assigned to this authorization.
-            </CardDescription>
+            <CardDescription>{copy.vehicleDescription}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 pt-4">
             {vehicle ? (
               <>
-                <DetailRow icon={<Car className="size-4" />} label="Door number">
-                  {vehicle.door_number ?? "Unavailable"}
+                <DetailRow icon={<Car className="size-4" />} label={copy.doorNumber}>
+                  {vehicle.door_number ?? copy.unavailable}
                 </DetailRow>
-                <DetailRow icon={<Car className="size-4" />} label="Plate">
+                <DetailRow icon={<Car className="size-4" />} label={copy.plate}>
                   <Link
                     href={`/vehicles/${vehicle.id}`}
                     className="text-[#e30613] underline-offset-4 hover:underline"
@@ -280,21 +297,19 @@ export function AuthorizationDetailView({
                     {plateFieldValue(vehicle)}
                   </Link>
                 </DetailRow>
-                <DetailRow icon={<Car className="size-4" />} label="Vehicle">
+                <DetailRow icon={<Car className="size-4" />} label={copy.vehicle}>
                   {vehicle.make} {vehicle.model}
                   {vehicle.year ? ` · ${vehicle.year}` : ""}
                   {vehicle.color ? ` · ${vehicle.color}` : ""}
                 </DetailRow>
               </>
             ) : (
-              <p className="text-sm text-slate-500">
-                Vehicle details unavailable.
-              </p>
+              <p className="text-sm text-slate-500">{copy.vehicleUnavailable}</p>
             )}
             {request.purpose ? (
               <div className="rounded-xl border border-slate-200/70 bg-slate-50/80 px-3 py-3">
                 <p className="text-[11px] font-semibold tracking-[0.14em] text-slate-400 uppercase">
-                  Purpose
+                  {copy.purpose}
                 </p>
                 <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
                   {request.purpose}
@@ -308,24 +323,22 @@ export function AuthorizationDetailView({
           <CardHeader className="border-b border-slate-100">
             <CardTitle className="flex items-center gap-2">
               <UserRound className="size-4 text-[#e30613]" />
-              Requester
+              {copy.requesterTitle}
             </CardTitle>
-            <CardDescription>
-              Employee who submitted this authorization request.
-            </CardDescription>
+            <CardDescription>{copy.requesterDescription}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 pt-4">
-            <DetailRow icon={<UserRound className="size-4" />} label="Name">
+            <DetailRow icon={<UserRound className="size-4" />} label={copy.name}>
               {requester.name}
               {requester.badge ? (
                 <span className="mt-0.5 block text-xs font-normal text-slate-500">
-                  Badge {requester.badge} · submitted via public form
+                  {copy.publicBadge(requester.badge)}
                 </span>
               ) : null}
             </DetailRow>
             <DetailRow
               icon={<Mail className="size-4" />}
-              label={requester.source === "public" ? "Mobile" : "Email"}
+              label={requester.source === "public" ? copy.mobile : copy.email}
             >
               {requester.contact ? (
                 <a
@@ -344,16 +357,16 @@ export function AuthorizationDetailView({
             </DetailRow>
             <DetailRow
               icon={<Building2 className="size-4" />}
-              label="Department"
+              label={copy.department}
             >
               {requester.department?.trim() || "—"}
             </DetailRow>
-            <DetailRow icon={<Building2 className="size-4" />} label="Location">
+            <DetailRow icon={<Building2 className="size-4" />} label={copy.location}>
               {request.location ?? "—"}
             </DetailRow>
             <div className="rounded-xl border border-slate-200/70 bg-slate-50/80 px-3 py-3">
               <p className="text-[11px] font-semibold tracking-[0.14em] text-slate-400 uppercase">
-                Justification
+                {copy.justification}
               </p>
               <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
                 {request.justification ?? request.purpose ?? "—"}
@@ -366,28 +379,26 @@ export function AuthorizationDetailView({
           <CardHeader className="border-b border-slate-100">
             <CardTitle className="flex items-center gap-2">
               <CheckCircle2 className="size-4 text-[#e30613]" />
-              Approval timeline
+              {copy.timelineTitle}
             </CardTitle>
-            <CardDescription>
-              Submission and decision milestones for this request.
-            </CardDescription>
+            <CardDescription>{copy.timelineDescription}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 pt-4 md:grid-cols-2 xl:grid-cols-4">
-            <DetailRow icon={<UserRound className="size-4" />} label="First approval">
+            <DetailRow icon={<UserRound className="size-4" />} label={copy.firstApproval}>
               {firstApprover?.full_name?.trim() ||
                 (request.approval_stage === 1 && request.status === "pending"
-                  ? "Waiting for logistics"
+                  ? copy.waitingLogistics
                   : "—")}
               {request.first_approved_at ? (
                 <span className="mt-0.5 block text-xs font-normal text-slate-500">
-                  {formatDecisionTime(request.first_approved_at)}
+                  {formatDecisionTime(request.first_approved_at, locale)}
                 </span>
               ) : null}
             </DetailRow>
-            <DetailRow icon={<UserRound className="size-4" />} label={decisionActorLabel(request)}>
+            <DetailRow icon={<UserRound className="size-4" />} label={decisionActorLabel(request, locale)}>
               {request.status === "rejected"
                 ? (rejectedBy?.full_name?.trim() || "—")
-                : (approver?.full_name?.trim() || (request.approver_id ? "—" : "Unassigned"))}
+                : (approver?.full_name?.trim() || (request.approver_id ? "—" : copy.unassigned))}
               {request.status === "rejected"
                 ? rejectedBy?.email ? (
                     <span className="mt-0.5 block text-xs font-normal text-slate-500">
@@ -402,30 +413,30 @@ export function AuthorizationDetailView({
             </DetailRow>
             <DetailRow
               icon={<CalendarDays className="size-4" />}
-              label="Submitted"
+              label={copy.submitted}
             >
-              {formatDecisionTime(request.created_at)}
+              {formatDecisionTime(request.created_at, locale)}
             </DetailRow>
             {request.approved_at ? (
               <DetailRow
                 icon={<CheckCircle2 className="size-4 text-emerald-600" />}
-                label="Approved at"
+                label={copy.approvedAt}
               >
-                {formatDecisionTime(request.approved_at)}
+                {formatDecisionTime(request.approved_at, locale)}
               </DetailRow>
             ) : null}
             {request.rejected_at ? (
               <DetailRow
                 icon={<XCircle className="size-4 text-rose-600" />}
-                label="Rejected at"
+                label={copy.rejectedAt}
               >
-                {formatDecisionTime(request.rejected_at)}
+                {formatDecisionTime(request.rejected_at, locale)}
               </DetailRow>
             ) : null}
             {request.rejection_reason ? (
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 md:col-span-2 xl:col-span-4">
                 <p className="text-[11px] font-semibold tracking-[0.14em] text-rose-700 uppercase">
-                  Rejection reason
+                  {copy.rejectionReason}
                 </p>
                 <p className="mt-1 whitespace-pre-wrap text-sm text-rose-900">
                   {request.rejection_reason}

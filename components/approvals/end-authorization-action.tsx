@@ -6,12 +6,14 @@ import { toast } from "sonner";
 
 import { endAuthorization } from "@/actions/approvals";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/lib/i18n/client";
 
 export function EndAuthorizationAction({
   authorizationId,
 }: {
   authorizationId: string;
 }) {
+  const { t, tm } = useI18n();
   const [pending, startTransition] = useTransition();
 
   return (
@@ -25,15 +27,15 @@ export function EndAuthorizationAction({
         startTransition(async () => {
           const result = await endAuthorization({ id: authorizationId });
           if (!result.ok) {
-            toast.error(result.error);
+            toast.error(tm(result.error));
             return;
           }
-          toast.success("Authorization ended");
+          toast.success(t.approvals.endAuthorization.ended);
         });
       }}
     >
       <Ban className="size-3.5" />
-      {pending ? "Ending…" : "End Authorization"}
+      {pending ? t.approvals.endAuthorization.ending : t.approvals.endAuthorization.label}
     </Button>
   );
 }

@@ -7,6 +7,7 @@ import { findApprovedOverlappingAuthorization, getAuthorizationDetail, listLocat
 import { ApprovalActions } from "@/components/approvals/approval-actions";
 import { EndAuthorizationAction } from "@/components/approvals/end-authorization-action";
 import { canReviewApproval } from "@/lib/approvals/presentation";
+import { getI18n } from "@/lib/i18n/server";
 import {
   AuthorizationDetailView,
   type AuthorizationDetailData,
@@ -21,6 +22,8 @@ export default async function RequestDetailPage({
 }) {
   const profile = await requireRole(["admin", "logistics_approver"]);
   const { id } = await params;
+  const { t, locale } = await getI18n();
+  const copy = t.approvals.detailPage;
 
   let request;
   let conflict;
@@ -52,9 +55,9 @@ export default async function RequestDetailPage({
   } catch {
     return (
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Request</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{copy.errorTitle}</h1>
         <p className="text-sm text-destructive" role="alert">
-          Unable to load request. Please try again later.
+          {copy.loadError}
         </p>
       </div>
     );
@@ -66,9 +69,10 @@ export default async function RequestDetailPage({
     <AuthorizationDetailView
       request={request as AuthorizationDetailData}
       verificationUrl={buildGateVerificationUrl(request.public_token)}
-      breadcrumb={{ href: "/history", label: "Requests history" }}
-      title="Authorization details"
+      breadcrumb={{ href: "/history", label: copy.breadcrumb }}
+      title={copy.title}
       viewerRole={profile.role}
+      locale={locale}
       actions={
         canReviewApproval(profile.role, request, profile.id) ? (
           <ApprovalActions

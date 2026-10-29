@@ -1,3 +1,5 @@
+"use client";
+
 import {
   AlertTriangle,
   Check,
@@ -8,12 +10,12 @@ import {
 } from "lucide-react";
 
 import type { GateVerificationResultData } from "@/lib/authorizations/gate-verification";
+import { isExtendedUsageAfter } from "@/lib/business-date";
+import { useI18n } from "@/lib/i18n/client";
 import { plateLabel } from "@/components/vehicles/plate-label";
 
 const statePresentation = {
   valid: {
-    headline: "VALID AUTHORIZATION",
-    label: "Authorization confirmed",
     icon: ShieldCheck,
     palette: {
       panel: "border-emerald-200 bg-emerald-50",
@@ -24,8 +26,6 @@ const statePresentation = {
     },
   },
   not_yet_valid: {
-    headline: "NOT YET VALID",
-    label: "Authorization is not active",
     icon: Clock3,
     palette: {
       panel: "border-amber-200 bg-amber-50",
@@ -36,8 +36,6 @@ const statePresentation = {
     },
   },
   invalid: {
-    headline: "NOT VALID",
-    label: "Authorization not confirmed",
     icon: X,
     palette: {
       panel: "border-rose-200 bg-rose-50",
@@ -48,8 +46,6 @@ const statePresentation = {
     },
   },
   unavailable: {
-    headline: "NOT VALID",
-    label: "Authorization could not be verified",
     icon: AlertTriangle,
     palette: {
       panel: "border-rose-200 bg-rose-50",
@@ -66,10 +62,16 @@ export function GateVerificationResult({
 }: {
   result: GateVerificationResultData;
 }) {
+  const { t, intl, tm } = useI18n();
+  const copy = t.public.gate;
   const presentation = statePresentation[result.state];
+  const stateCopy = copy.states[result.state];
   const StatusIcon = presentation.icon;
-  const checkedAt = formatSaudiTime(result.checkedAt);
+  const checkedAt = formatSaudiTime(result.checkedAt, intl) ?? copy.timeUnavailable;
   const details = result.state === "valid" ? result.details : undefined;
+  const plate = details
+    ? plateLabel({ plate_number: details.plate, door_number: details.doorNumber })
+    : "";
 
   return (
     <section
@@ -93,19 +95,19 @@ export function GateVerificationResult({
               <p
                 className={`text-[11px] font-bold tracking-[0.16em] uppercase ${presentation.palette.eyebrow}`}
               >
-                {presentation.label}
+                {stateCopy.label}
               </p>
               <h1
                 className={`mt-2 text-[clamp(1.65rem,7vw,2.4rem)] leading-[1.05] font-black tracking-[-0.045em] ${presentation.palette.headline}`}
               >
-                {presentation.headline}
+                {stateCopy.headline}
               </h1>
             </div>
           </div>
 
           {result.state !== "valid" && (
             <p className="mt-5 border-t border-current/15 pt-4 text-sm leading-6 text-slate-800">
-              {result.reason}
+              {tm(result.reason)}
             </p>
           )}
         </div>
@@ -120,31 +122,35 @@ export function GateVerificationResult({
                 <Check className="size-3.5" strokeWidth={3} />
               </span>
               <h2 className="text-xs font-bold tracking-[0.12em] text-slate-700 uppercase">
-                Compare before entry
+                {copy.compareHeading}
               </h2>
             </div>
 
             <dl className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200">
-              <ComparisonRow label="Driver" value={details.driver} />
+              <ComparisonRow label={copy.driver} value={details.driver} />
               {details.badge && (
-                <ComparisonRow label="Company ID / badge" value={details.badge} />
+                <ComparisonRow label={copy.badge} value={details.badge} />
               )}
               <ComparisonRow
-                label="Door number"
-                value={details.doorNumber ?? "Unavailable"}
+                label={copy.doorNumber}
+                value={details.doorNumber ?? t.public.vehicle.unavailable}
               />
               <ComparisonRow
-                label="Vehicle plate"
-                value={plateLabel({
-                  plate_number: details.plate,
-                  door_number: details.doorNumber,
-                })}
+                label={copy.vehiclePlate}
+                value={plate === "Plate unavailable" ? t.public.vehicle.plateUnavailable : plate}
               />
-              <ComparisonRow label="Vehicle" value={details.vehicle} />
-              <ComparisonRow label="Valid from" value={details.startDate} />
-              <ComparisonRow label="Valid through" value={details.endDate} />
-              <ComparisonRow label="Usage after" value={`${details.usageAfter} Saudi time`} />
-              <ComparisonRow label="Reference" value={details.reference} />
+              <ComparisonRow label={copy.vehicle} value={details.vehicle} />
+              <ComparisonRow label={copy.validFrom} value={details.startDate} />
+              <ComparisonRow label={copy.validThrough} value={details.endDate} />
+              <ComparisonRow
+                label={t.common.extendedTime.usageAfter}
+                value={`${details.usageAfter} ${t.common.saudiTime}${
+                  isExtendedUsageAfter(details.usageAfter)
+                    ? ` · ${t.common.extendedTime.badge}`
+                    : ""
+                }`}
+              />
+              <ComparisonRow label={copy.reference} value={details.reference} />
               {details.location && (
                 <div className="flex items-start gap-3 bg-slate-50/70 px-4 py-3.5">
                   <MapPin
@@ -153,7 +159,7 @@ export function GateVerificationResult({
                   />
                   <div className="min-w-0">
                     <dt className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
-                      Location
+                      {copy.location}
                     </dt>
                     <dd className="mt-1 break-words text-sm font-semibold text-slate-900">
                       {details.location}
@@ -167,16 +173,17 @@ export function GateVerificationResult({
 
         <div className="mt-6 rounded-xl border border-[#eadfc9] bg-[#fbf7ef] px-4 py-4">
           <p className="text-sm leading-6 font-semibold text-slate-900">
-            Compare the person and vehicle with the company ID and vehicle
-            shown. Re-scan the printed pass to check the current status.
+            {copy.instructions}
           </p>
         </div>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-slate-200 pt-4 text-xs text-slate-500">
-          <span className="font-semibold text-slate-600">LVAS · Bin Quraya</span>
+          <span className="font-semibold text-slate-600">
+            {`LVAS · ${t.common.companyName}`}
+          </span>
           <span>
-            Checked {checkedAt} <span className="text-slate-400">·</span> Saudi
-            time (UTC+03:00)
+            {copy.checked(checkedAt)} <span className="text-slate-400">·</span>{" "}
+            {copy.saudiTimeOffset}
           </span>
         </div>
       </div>
@@ -190,18 +197,18 @@ function ComparisonRow({ label, value }: { label: string; value: string }) {
       <dt className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
         {label}
       </dt>
-      <dd className="min-w-0 break-words text-right text-sm font-bold text-slate-900">
+      <dd className="min-w-0 break-words text-end text-sm font-bold text-slate-900">
         {value}
       </dd>
     </div>
   );
 }
 
-function formatSaudiTime(value: string) {
+function formatSaudiTime(value: string, intl: string): string | null {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Time unavailable";
+  if (Number.isNaN(date.getTime())) return null;
 
-  return new Intl.DateTimeFormat("en-GB", {
+  return new Intl.DateTimeFormat(intl, {
     dateStyle: "medium",
     timeStyle: "short",
     timeZone: "Asia/Riyadh",

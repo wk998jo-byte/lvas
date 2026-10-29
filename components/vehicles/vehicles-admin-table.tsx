@@ -44,13 +44,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useI18n } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 import type { Vehicle } from "@/types/database";
 import {
   isDoorNumberPlate,
+  localizedPlateLabel,
   plateFieldValue,
-  plateLabel,
   vehicleSearchMatches,
+  vehicleShortLabel,
 } from "@/components/vehicles/plate-label";
 
 type VehiclesAdminTableProps = {
@@ -59,13 +61,19 @@ type VehiclesAdminTableProps = {
 
 type FilterKey = "all" | "active" | "inactive";
 
-const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "active", label: "Active" },
-  { key: "inactive", label: "Inactive" },
-];
+const FILTERS = [
+  { key: "all", label: "filterAll" },
+  { key: "active", label: "filterActive" },
+  { key: "inactive", label: "filterInactive" },
+] as const satisfies readonly {
+  key: FilterKey;
+  label: "filterAll" | "filterActive" | "filterInactive";
+}[];
 
 export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
+  const { t, tm, locale } = useI18n();
+  const copy = t.vehicles.admin;
+  const table = t.vehicles.table;
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Vehicle | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -117,7 +125,7 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
         setFormError(result.error);
         return;
       }
-      toast.success("Vehicle created");
+      toast.success(copy.created);
       setCreateOpen(false);
     });
   }
@@ -139,7 +147,7 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
         setFormError(result.error);
         return;
       }
-      toast.success("Vehicle updated");
+      toast.success(copy.updated);
       setEditing(null);
     });
   }
@@ -148,10 +156,10 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
     startTransition(async () => {
       const result = await deactivateVehicle({ id: vehicle.id });
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(tm(result.error));
         return;
       }
-      toast.success(`${vehicle.door_number ? `Door ${vehicle.door_number}` : plateLabel(vehicle)} deactivated`);
+      toast.success(copy.deactivated(vehicleShortLabel(vehicle, locale)));
     });
   }
 
@@ -159,10 +167,10 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
     startTransition(async () => {
       const result = await reactivateVehicle({ id: vehicle.id });
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(tm(result.error));
         return;
       }
-      toast.success(`${vehicle.door_number ? `Door ${vehicle.door_number}` : plateLabel(vehicle)} reactivated`);
+      toast.success(copy.reactivated(vehicleShortLabel(vehicle, locale)));
     });
   }
 
@@ -171,12 +179,12 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
       <div className="flex flex-col gap-4 border-b border-slate-100 p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative w-full max-w-md">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-slate-400" />
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search door number, plate, make, model, color…"
-              className="h-10 rounded-xl border-slate-200 pl-10"
+              placeholder={table.searchPlaceholder}
+              className="h-10 rounded-xl border-slate-200 ps-10"
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -205,7 +213,7 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
               }}
             >
               <Plus className="size-4" />
-              Add vehicle
+              {copy.addVehicle}
             </Button>
           </div>
         </div>
@@ -225,7 +233,7 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
                     : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
                 )}
               >
-                {item.label}
+                {copy[item.label]}
                 <span
                   className={cn(
                     "rounded-full px-1.5 py-0.5 text-[11px] tabular-nums",
@@ -247,12 +255,12 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
           <EmptyState
             icon={Car}
             title={
-              vehicles.length === 0 ? "No vehicles yet" : "No matching vehicles"
+              vehicles.length === 0 ? table.noVehiclesTitle : copy.noMatchingTitle
             }
             description={
               vehicles.length === 0
-                ? "Add the first vehicle to the fleet directory to get started."
-                : "Try another search term or status filter."
+                ? copy.noVehiclesDescription
+                : copy.noMatchingDescription
             }
             action={
               vehicles.length === 0 ? (
@@ -265,7 +273,7 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
                   }}
                 >
                   <Plus className="size-4" />
-                  Add vehicle
+                  {copy.addVehicle}
                 </Button>
               ) : undefined
             }
@@ -276,13 +284,13 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Door number</TableHead>
-                <TableHead>Plate</TableHead>
-                <TableHead>Make &amp; model</TableHead>
-                <TableHead>Year</TableHead>
-                <TableHead>Color</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>{table.doorNumber}</TableHead>
+                <TableHead>{table.plate}</TableHead>
+                <TableHead>{table.makeModel}</TableHead>
+                <TableHead>{table.year}</TableHead>
+                <TableHead>{table.color}</TableHead>
+                <TableHead>{table.status}</TableHead>
+                <TableHead className="text-end">{table.actions}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -295,7 +303,7 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
                     {vehicle.door_number ?? "—"}
                   </TableCell>
                   <TableCell className="font-semibold text-slate-900">
-                    {plateFieldValue(vehicle)}
+                    {plateFieldValue(vehicle, locale)}
                   </TableCell>
                   <TableCell>
                     {vehicle.make} {vehicle.model}
@@ -314,17 +322,17 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
                           : "border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-100",
                       )}
                     >
-                      {vehicle.is_active ? "Active" : "Inactive"}
+                      {vehicle.is_active ? table.active : table.inactive}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-end">
                     <div className="flex items-center justify-end gap-1">
                       <Button
                         type="button"
                         size="icon-sm"
                         variant="ghost"
-                        aria-label={`Edit ${vehicle.door_number ? `Door ${vehicle.door_number}` : plateLabel(vehicle)}`}
-                        title="Edit"
+                        aria-label={copy.editAria(vehicleShortLabel(vehicle, locale))}
+                        title={copy.editTitle}
                         disabled={pending}
                         onClick={() => {
                           setFormError(null);
@@ -336,8 +344,8 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
                       <Button
                         size="icon-sm"
                         variant="ghost"
-                        aria-label={`View ${vehicle.door_number ? `Door ${vehicle.door_number}` : plateLabel(vehicle)}`}
-                        title="View details"
+                        aria-label={copy.viewAria(vehicleShortLabel(vehicle, locale))}
+                        title={copy.viewTitle}
                         render={<Link href={`/vehicles/${vehicle.id}`} />}
                       >
                         <Eye className="size-4" />
@@ -347,8 +355,8 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
                           type="button"
                           size="icon-sm"
                           variant="ghost"
-                          aria-label={`Deactivate ${vehicle.door_number ? `Door ${vehicle.door_number}` : plateLabel(vehicle)}`}
-                          title="Deactivate"
+                          aria-label={copy.deactivateAria(vehicleShortLabel(vehicle, locale))}
+                          title={copy.deactivateTitle}
                           className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                           disabled={pending}
                           onClick={() => runDeactivate(vehicle)}
@@ -360,8 +368,8 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
                           type="button"
                           size="icon-sm"
                           variant="ghost"
-                          aria-label={`Reactivate ${vehicle.door_number ? `Door ${vehicle.door_number}` : plateLabel(vehicle)}`}
-                          title="Reactivate"
+                          aria-label={copy.reactivateAria(vehicleShortLabel(vehicle, locale))}
+                          title={copy.reactivateTitle}
                           className="text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
                           disabled={pending}
                           onClick={() => runReactivate(vehicle)}
@@ -398,14 +406,12 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
       >
         <DialogContent className="sm:max-w-lg" showCloseButton>
           <DialogHeader>
-            <DialogTitle>Add vehicle</DialogTitle>
-            <DialogDescription>
-              Create a directory entry available for authorization requests.
-            </DialogDescription>
+            <DialogTitle>{copy.addDialogTitle}</DialogTitle>
+            <DialogDescription>{copy.addDialogDescription}</DialogDescription>
           </DialogHeader>
           <VehicleForm
             key={createOpen ? "create-open" : "create-closed"}
-            submitLabel="Create vehicle"
+            submitLabel={copy.createSubmit}
             pending={pending}
             error={formError}
             onCancel={() => setCreateOpen(false)}
@@ -425,18 +431,20 @@ export function VehiclesAdminTable({ vehicles }: VehiclesAdminTableProps) {
       >
         <DialogContent className="sm:max-w-lg" showCloseButton>
           <DialogHeader>
-            <DialogTitle>Edit vehicle</DialogTitle>
+            <DialogTitle>{copy.editDialogTitle}</DialogTitle>
             <DialogDescription>
-              Update details for {editing?.door_number
-                ? `Door ${editing.door_number} · ${plateLabel(editing)}`
-                : plateLabel(editing ?? { plate_number: null })}.
+              {copy.editDialogDescription(
+                editing?.door_number
+                  ? `${t.vehicles.identity.door(editing.door_number)} · ${localizedPlateLabel(editing, locale)}`
+                  : localizedPlateLabel(editing ?? { plate_number: null }, locale),
+              )}
             </DialogDescription>
           </DialogHeader>
           {editing ? (
             <VehicleForm
               key={editing.id}
               initial={editing}
-              submitLabel="Save changes"
+              submitLabel={copy.saveChanges}
               pending={pending}
               error={formError}
               onCancel={() => setEditing(null)}

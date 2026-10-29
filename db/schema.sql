@@ -192,7 +192,7 @@ create table if not exists authorizations (
   updated_at timestamptz not null default timezone('utc', now()),
   constraint authorizations_date_range_check check (end_date >= start_date),
   constraint authorizations_approval_stage_check check (approval_stage in (1, 2)),
-  constraint authorizations_usage_after_fixed_check check (usage_after = time '19:00'),
+  constraint authorizations_usage_after_allowed_check check (usage_after in (time '19:00', time '21:00')),
   constraint authorizations_rejection_reason_check check (
     (status <> 'rejected') or (rejection_reason is not null and length(trim(rejection_reason)) > 0)
   ),

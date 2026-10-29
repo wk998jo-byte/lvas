@@ -1,14 +1,9 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge";
+import { useI18n } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 import type { AuthorizationStatus } from "@/types/database";
-
-const STATUS_LABEL: Record<AuthorizationStatus, string> = {
-  pending: "Pending",
-  approved: "Approved",
-  rejected: "Rejected",
-  expired: "Expired",
-  cancelled: "Cancelled",
-};
 
 const STATUS_CLASS: Record<AuthorizationStatus, string> = {
   pending: "border-amber-200 bg-amber-50 text-amber-700",
@@ -35,6 +30,7 @@ export function AuthorizationStatusBadge({
   label?: string;
   className?: string;
 }) {
+  const { t } = useI18n();
   const pulse = status === "pending";
 
   return (
@@ -62,7 +58,7 @@ export function AuthorizationStatusBadge({
           )}
         />
       </span>
-      {label ?? STATUS_LABEL[status]}
+      {label ?? t.common.status[status]}
     </Badge>
   );
 }

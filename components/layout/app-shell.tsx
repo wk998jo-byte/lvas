@@ -15,11 +15,16 @@ import {
 
 import { AmbientBackdrop } from "@/components/brand/ambient-backdrop";
 import { BrandLogo } from "@/components/brand/logo";
+import { LanguageSwitch } from "@/components/i18n/language-switch";
 import { UserMenu } from "@/components/layout/user-menu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { shellEn, type ShellDictionary } from "@/lib/i18n/dictionaries/en/shell";
+import type { Translation } from "@/lib/i18n/types";
 import { cn } from "@/lib/utils";
 import type { Profile, UserRole } from "@/types/database";
+
+type ShellLabels = Translation<ShellDictionary>;
 
 type NavItem = {
   href: string;
@@ -33,6 +38,12 @@ type AppShellProps = {
   profile: Profile;
   /** Requests waiting for a decision, shown as a badge on the dashboard link. */
   pendingCount: number;
+  /**
+   * Translated `t.shell` from the server layout. This component cannot read
+   * the locale context itself because scripts/test-release-ui-state.mjs
+   * renders it with a React stub that has no useContext.
+   */
+  labels?: ShellLabels;
   children: ReactNode;
 };
 
@@ -41,62 +52,71 @@ const subscribeToStoredCollapse = () => () => {};
 const getStoredCollapse = () => window.localStorage.getItem(STORAGE_KEY) === "1";
 const getServerCollapse = () => null;
 
-function pageMeta(pathname: string): {
+function pageMeta(
+  pathname: string,
+  labels: ShellLabels,
+): {
   title: string;
   crumbs: { label: string; href?: string }[];
 } {
+  const { crumbs, titles } = labels;
   if (pathname.startsWith("/history/") && pathname !== "/history") {
     return {
-      title: "Authorization details",
+      title: titles.authorizationDetails,
       crumbs: [
-        { label: "Home", href: "/" },
-        { label: "Requests history", href: "/history" },
-        { label: "Details" },
+        { label: crumbs.home, href: "/" },
+        { label: titles.history, href: "/history" },
+        { label: crumbs.details },
       ],
     };
   }
   if (pathname.startsWith("/history")) {
     return {
-      title: "Requests history",
-      crumbs: [{ label: "Home", href: "/" }, { label: "Requests history" }],
+      title: titles.history,
+      crumbs: [{ label: crumbs.home, href: "/" }, { label: titles.history }],
     };
   }
   if (pathname.startsWith("/vehicles/") && pathname !== "/vehicles") {
     return {
-      title: "Vehicle details",
+      title: titles.vehicleDetails,
       crumbs: [
-        { label: "Home", href: "/" },
-        { label: "Vehicles", href: "/vehicles" },
-        { label: "Details" },
+        { label: crumbs.home, href: "/" },
+        { label: titles.vehicles, href: "/vehicles" },
+        { label: crumbs.details },
       ],
     };
   }
   if (pathname.startsWith("/vehicles")) {
     return {
-      title: "Vehicles",
-      crumbs: [{ label: "Home", href: "/" }, { label: "Vehicles" }],
+      title: titles.vehicles,
+      crumbs: [{ label: crumbs.home, href: "/" }, { label: titles.vehicles }],
     };
   }
   if (pathname.startsWith("/account/password")) {
     return {
-      title: "Change password",
-      crumbs: [{ label: "Home", href: "/" }, { label: "Change password" }],
+      title: titles.changePassword,
+      crumbs: [{ label: crumbs.home, href: "/" }, { label: titles.changePassword }],
     };
   }
   if (pathname.startsWith("/admin/employees")) {
     return {
-      title: "Employees",
+      title: titles.employees,
       crumbs: [
-        { label: "Home", href: "/" },
-        { label: "Admin" },
-        { label: "Employees" },
+        { label: crumbs.home, href: "/" },
+        { label: crumbs.admin },
+        { label: titles.employees },
       ],
     };
   }
-  return { title: "Dashboard", crumbs: [{ label: "Home" }] };
+  return { title: titles.dashboard, crumbs: [{ label: crumbs.home }] };
 }
 
-export function AppShell({ profile, pendingCount, children }: AppShellProps) {
+export function AppShell({
+  profile,
+  pendingCount,
+  labels = shellEn,
+  children,
+}: AppShellProps) {
   const pathname = usePathname();
   const storedCollapse = useSyncExternalStore(subscribeToStoredCollapse, getStoredCollapse, getServerCollapse);
   const [collapseOverride, setCollapsed] = useState<boolean | null>(null);
@@ -125,38 +145,38 @@ export function AppShell({ profile, pendingCount, children }: AppShellProps) {
     [
       {
         href: "/",
-        label: "Dashboard",
+        label: labels.nav.dashboard,
         icon: LayoutDashboard,
         roles: ["admin", "logistics_approver"] as UserRole[],
         badge: pendingCount,
       },
       {
         href: "/history",
-        label: "Requests history",
+        label: labels.nav.history,
         icon: History,
         roles: ["admin", "logistics_approver"] as UserRole[],
       },
       {
         href: "/vehicles",
-        label: "Vehicles",
+        label: labels.nav.vehicles,
         icon: Car,
         roles: ["admin"] as UserRole[],
       },
       {
         href: "/admin/employees",
-        label: "Employees",
+        label: labels.nav.employees,
         icon: UsersRound,
         roles: ["admin"] as UserRole[],
       },
     ] satisfies NavItem[]
   ).filter((link) => link.roles.includes(profile.role));
 
-  const { title, crumbs } = pageMeta(pathname);
+  const { title, crumbs } = pageMeta(pathname, labels);
 
   const sidebar = (
     <aside
       className={cn(
-        "glass-panel relative flex h-full flex-col overflow-hidden border-y-0 border-l-0 text-slate-800 transition-[width] duration-200",
+        "glass-panel relative flex h-full flex-col overflow-hidden border-y-0 border-s-0 text-slate-800 transition-[width] duration-200",
         collapsed ? "w-[76px]" : "w-64",
       )}
     >
@@ -197,7 +217,7 @@ export function AppShell({ profile, pendingCount, children }: AppShellProps) {
               )}
             >
               {active ? (
-                <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-[#e30613]" />
+                <span className="absolute inset-y-2 start-0 w-0.5 rounded-full bg-[#e30613]" />
               ) : null}
               <Icon
                 className={cn(
@@ -228,11 +248,11 @@ export function AppShell({ profile, pendingCount, children }: AppShellProps) {
           onClick={toggleCollapsed}
         >
           {collapsed ? (
-            <ChevronRight className="size-4" />
+            <ChevronRight className="size-4 rtl:rotate-180" />
           ) : (
             <>
-              <ChevronLeft className="size-4" />
-              Collapse
+              <ChevronLeft className="size-4 rtl:rotate-180" />
+              {labels.collapse}
             </>
           )}
         </Button>
@@ -244,7 +264,7 @@ export function AppShell({ profile, pendingCount, children }: AppShellProps) {
     <div className="relative flex min-h-svh overflow-hidden">
       <AmbientBackdrop intensity="app" />
 
-      <div className="relative z-10 hidden md:block md:py-3 md:pl-3">
+      <div className="relative z-10 hidden md:block md:py-3 md:ps-3">
         {sidebar}
       </div>
 
@@ -253,16 +273,16 @@ export function AppShell({ profile, pendingCount, children }: AppShellProps) {
           <button
             type="button"
             className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm"
-            aria-label="Close menu"
+            aria-label={labels.closeMenu}
             onClick={() => setMobileOpen(false)}
           />
-          <div className="absolute inset-y-0 left-0 w-64 p-3 shadow-xl">
+          <div className="absolute inset-y-0 start-0 w-64 p-3 shadow-xl">
             {sidebar}
           </div>
         </div>
       ) : null}
 
-      <div className="relative z-10 flex min-w-0 flex-1 flex-col md:py-3 md:pr-3">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col md:py-3 md:pe-3">
         <header className="glass-panel sticky top-0 z-40 mx-3 mt-3 rounded-2xl md:mx-0 md:mt-0">
           <div className="flex h-14 items-center justify-between gap-3 px-4 md:px-5">
             <div className="flex min-w-0 items-center gap-3">
@@ -273,10 +293,10 @@ export function AppShell({ profile, pendingCount, children }: AppShellProps) {
                 className="text-slate-600 hover:bg-white/80 hover:text-slate-900 md:hidden"
                 onClick={() => setMobileOpen(true)}
               >
-                <PanelLeft className="size-4" />
+                <PanelLeft className="size-4 rtl:rotate-180" />
               </Button>
               <nav
-                aria-label="Breadcrumb"
+                aria-label={labels.breadcrumb}
                 className="flex min-w-0 items-center gap-1.5 text-sm text-slate-500"
               >
                 {crumbs.map((crumb, index) => {
@@ -313,7 +333,10 @@ export function AppShell({ profile, pendingCount, children }: AppShellProps) {
                 })}
               </nav>
             </div>
-            <UserMenu profile={profile} />
+            <div className="flex shrink-0 items-center gap-2">
+              <LanguageSwitch />
+              <UserMenu profile={profile} />
+            </div>
           </div>
         </header>
         <main className="mx-auto w-full max-w-7xl flex-1 animate-rise px-4 py-6 md:px-6">

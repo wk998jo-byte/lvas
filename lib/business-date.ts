@@ -2,8 +2,25 @@
 
 export const BUSINESS_TIME_ZONE = "Asia/Riyadh";
 
-/** Fixed after-hours clock stored on every authorization. */
+/** Standard after-hours clock stored on every authorization. */
 export const FIXED_USAGE_AFTER = "19:00:00";
+
+/** Start clock when the employee asks for 2 hours of extended time. */
+export const EXTENDED_USAGE_AFTER = "21:00:00";
+
+export type UsageAfter = typeof FIXED_USAGE_AFTER | typeof EXTENDED_USAGE_AFTER;
+
+/** Accepts HH:MM or HH:MM:SS; anything other than 19:00 or 21:00 is null. */
+export function normalizeAllowedUsageAfter(value: string | null | undefined): UsageAfter | null {
+  if (typeof value !== "string") return null;
+  const full = value.length === 5 ? `${value}:00` : value;
+  if (full === FIXED_USAGE_AFTER || full === EXTENDED_USAGE_AFTER) return full;
+  return null;
+}
+
+export function isExtendedUsageAfter(value: string | null | undefined): boolean {
+  return normalizeAllowedUsageAfter(value) === EXTENDED_USAGE_AFTER;
+}
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 

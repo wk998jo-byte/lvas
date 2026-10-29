@@ -1,0 +1,63 @@
+import type { CommonDictionary } from "@/lib/i18n/dictionaries/en/common";
+import type { Translation } from "@/lib/i18n/types";
+
+export const commonAr: Translation<CommonDictionary> = {
+  appName: "LVAS",
+  appFullName: "نظام تصاريح المركبات الخفيفة",
+  companyName: "بن قريعة",
+  language: {
+    switchTo: "English",
+    switchLabel: "التبديل إلى الإنجليزية",
+  },
+  yes: "نعم",
+  no: "لا",
+  notRecorded: "غير مسجل",
+  notAvailable: "غير متوفر",
+  saudiTime: "بتوقيت السعودية",
+  dateRangeSeparator: "←",
+  status: {
+    pending: "قيد الانتظار",
+    approved: "معتمد",
+    rejected: "مرفوض",
+    expired: "منتهي",
+    cancelled: "ملغى",
+  },
+  roles: {
+    admin: "مسؤول النظام",
+    manager_requester: "مدير",
+    supervisor_requester: "مشرف",
+    logistics_approver: "معتمد اللوجستيات",
+    other_employee: "موظف",
+  },
+  approval: {
+    waitingLogistics: "بانتظار موافقة اللوجستيات",
+    waitingFinal: "وافقت اللوجستيات — بانتظار الموافقة النهائية",
+    rejectedByLogistics: "مرفوض من اللوجستيات",
+    rejectedByFinal: "مرفوض من المعتمد النهائي",
+    awaitingFinalDecision: "وافقت اللوجستيات — بانتظار القرار النهائي",
+    assignedFinalApprover: "المعتمد النهائي المكلّف",
+    finalApprover: "المعتمد النهائي",
+    logisticsRecorded: "تم تسجيل موافقة اللوجستيات وأُرسل الطلب للموافقة النهائية.",
+    authorizationApproved: "تم اعتماد التصريح",
+    stageAwaitingLogistics: "بانتظار اللوجستيات",
+    stageAwaitingFinal: "بانتظار الموافقة النهائية",
+  },
+  limits: {
+    managerCadence: "مرة كل 3 أشهر",
+    managerDuration: "حتى 3 أشهر (90 يومًا)",
+    dailyCadence: "مرة كل يوم",
+    dailyDuration: "يوم واحد، أو مدة مخصصة حتى شهر (30 يومًا)",
+  },
+  extendedTime: {
+    question: "هل تحتاج وقتًا إضافيًا؟",
+    help: "الوقت الإضافي ساعتان: يبدأ استخدام المركبة الساعة 9:00 مساءً بدلًا من 7:00 مساءً.",
+    yesLabel: "نعم، تمديد ساعتين",
+    noLabel: "لا",
+    chooseError: "اختر هل تحتاج وقتًا إضافيًا",
+    standardWindow: "يُسمح باستخدام المركبة بعد الساعة 7:00 مساءً في كل يوم معتمد.",
+    extendedWindow: "وقت إضافي: يُسمح باستخدام المركبة بعد الساعة 9:00 مساءً في كل يوم معتمد.",
+    label: "وقت إضافي",
+    badge: "تمديد +2 ساعة",
+    usageAfter: "الاستخدام بعد",
+  },
+};

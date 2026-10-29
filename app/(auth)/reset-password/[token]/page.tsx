@@ -3,10 +3,12 @@ import Link from "next/link";
 
 import { AmbientBackdrop } from "@/components/brand/ambient-backdrop";
 import { ResetPasswordForm } from "@/components/auth/reset-password-form";
+import { getI18n } from "@/lib/i18n/server";
 
-export const metadata: Metadata = {
-  title: "Reset password",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return { title: t.auth.metadata.resetPassword };
+}
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +19,7 @@ export default async function ResetPasswordPage({
 }) {
   const { token } = await params;
   const valid = token.trim().length >= 20;
+  const { t } = await getI18n();
 
   return (
     <main className="relative flex min-h-svh items-center justify-center overflow-hidden p-6">
@@ -27,16 +30,16 @@ export default async function ResetPasswordPage({
         ) : (
           <div className="glass-panel-strong rounded-3xl p-8 text-center">
             <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-              This reset link is invalid
+              {t.auth.reset.invalidTitle}
             </h1>
             <p className="mt-2 text-sm text-slate-500">
-              Request a new link from the sign-in page.
+              {t.auth.reset.invalidDescription}
             </p>
             <Link
               href="/forgot-password"
               className="mt-4 inline-block text-sm font-medium text-[#e30613] underline-offset-4 hover:underline"
             >
-              Forgot password
+              {t.auth.reset.forgotPasswordLink}
             </Link>
           </div>
         )}

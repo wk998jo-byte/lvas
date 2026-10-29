@@ -26,10 +26,14 @@ import {
   type BreakdownItem,
 } from "@/components/dashboard/status-breakdown";
 import { Button } from "@/components/ui/button";
+import { getI18n } from "@/lib/i18n/server";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 import type { AuthorizationStatus } from "@/types/database";
 import { plateLabel } from "@/lib/vehicles/identity";
 
 export const dynamic = "force-dynamic";
+
+type HomeCopy = Dictionary["dashboard"]["home"];
 
 type VehicleRef = {
   door_number: string | null;
@@ -38,9 +42,9 @@ type VehicleRef = {
   model: string;
 } | null;
 
-function formatDate(value: string): string {
+function formatDate(value: string, intl: string): string {
   try {
-    return new Intl.DateTimeFormat("en-GB", {
+    return new Intl.DateTimeFormat(intl, {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -50,10 +54,10 @@ function formatDate(value: string): string {
   }
 }
 
-function firstName(fullName: string, email: string): string {
+function firstName(fullName: string, email: string, fallback: string): string {
   const name = fullName?.trim();
   if (name) return name.split(/\s+/)[0]!;
-  return email.split("@")[0] ?? "there";
+  return email.split("@")[0] ?? fallback;
 }
 
 function one<T>(value: T | T[] | null | undefined): T | null {
@@ -61,18 +65,20 @@ function one<T>(value: T | T[] | null | undefined): T | null {
   return value ?? null;
 }
 
-function vehicleLabel(vehicle: VehicleRef): string {
-  if (!vehicle) return "Vehicle";
+function vehicleLabel(vehicle: VehicleRef, copy: HomeCopy): string {
+  if (!vehicle) return copy.vehicleFallback;
   return `${vehicle.make} ${vehicle.model}`;
 }
 
-function compactIdentity(vehicle: VehicleRef): string {
-  if (!vehicle) return "Vehicle";
-  return `${vehicle.door_number ? `Door ${vehicle.door_number} · ` : ""}${plateLabel(vehicle)}`;
+function compactIdentity(vehicle: VehicleRef, copy: HomeCopy): string {
+  if (!vehicle) return copy.vehicleFallback;
+  return `${vehicle.door_number ? copy.doorPrefix(vehicle.door_number) : ""}${plateLabel(vehicle)}`;
 }
 
 export default async function DashboardHomePage() {
   const profile = await requireRole(["admin", "logistics_approver"]);
+  const { t, locale, intl } = await getI18n();
+  const copy = t.dashboard.home;
   const isLogistics = profile.role === "logistics_approver";
   const locations = isLogistics
     ? await listLocationsForApprover(profile.id)
@@ -112,20 +118,21 @@ export default async function DashboardHomePage() {
     countAuthorizationsByStatus("expired", locations, adminId),
   ]);
 
+  const status = t.common.status;
   const breakdown: BreakdownItem[] = [
-    { label: "Pending", value: pendingCount, barClass: "bg-amber-500" },
+    { label: status.pending, value: pendingCount, barClass: "bg-amber-500" },
     {
-      label: "Approved",
+      label: status.approved,
       value: approvedCount,
       barClass: "bg-emerald-500",
     },
-    { label: "Rejected", value: rejectedCount, barClass: "bg-rose-500" },
+    { label: status.rejected, value: rejectedCount, barClass: "bg-rose-500" },
     {
-      label: "Cancelled",
+      label: status.cancelled,
       value: cancelledCount,
       barClass: "bg-slate-400",
     },
-    { label: "Expired", value: expiredCount, barClass: "bg-slate-300" },
+    { label: status.expired, value: expiredCount, barClass: "bg-slate-300" },
   ];
 
   const insights = summarizeInsights(insightsRows as unknown as InsightRow[]);
@@ -140,25 +147,23 @@ export default async function DashboardHomePage() {
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -top-24 right-6 size-48 rounded-full bg-[#e30613]/10 blur-3xl"
+          className="pointer-events-none absolute -top-24 end-6 size-48 rounded-full bg-[#e30613]/10 blur-3xl"
         />
 
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-[#e30613] uppercase">
+            <div className="inline-flex items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-[#e30613] uppercase rtl:tracking-normal">
               <Sparkles className="size-3.5" />
-              {isLogistics ? "Logistics approval" : "Admin dashboard"}
+              {isLogistics ? copy.badgeLogistics : copy.badgeAdmin}
             </div>
             <h1 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">
-              Welcome back, {firstName(profile.full_name, profile.email)}
+              {copy.welcomeBack}{firstName(profile.full_name, profile.email, copy.nameFallback)}
             </h1>
             <p className="max-w-2xl text-sm text-slate-500 md:text-base">
-              {isLogistics
-                ? "These requests are waiting for the first approval at your project locations. After you approve, they go to the final approver."
-                : "These requests already have logistics approval and are waiting for your final decision."}
+              {isLogistics ? copy.introLogistics : copy.introAdmin}
             </p>
-            <p className="text-xs tracking-wide text-slate-400 uppercase">
-              {formatDate(today)}
+            <p className="text-xs tracking-wide text-slate-400 uppercase rtl:tracking-normal">
+              {formatDate(today, intl)}
             </p>
           </div>
 
@@ -169,7 +174,7 @@ export default async function DashboardHomePage() {
               render={<Link href="/history" />}
             >
               <History className="size-4" />
-              Requests history
+              {copy.historyButton}
             </Button>
             <Button
               variant="outline"
@@ -177,7 +182,7 @@ export default async function DashboardHomePage() {
               render={<Link href="/request" target="_blank" />}
             >
               <Link2 className="size-4" />
-              Public request form
+              {copy.publicFormButton}
             </Button>
           </div>
         </div>
@@ -188,25 +193,23 @@ export default async function DashboardHomePage() {
           ...stats,
           pendingApprovals: await countPendingForReview(reviewFilter),
         }}
-        pendingLabel="Awaiting decision"
+        pendingLabel={copy.pendingKpiLabel}
       />
 
       {/* Queue with inline decisions */}
       <section className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-            Requests awaiting decision
+            {copy.queueTitle}
           </h2>
           <p className="text-sm text-slate-500">
-            {queue.length} pending
-            {isLogistics
-              ? " · approve here, then the request goes to final approval · "
-              : " · decided requests move to "}
+            {queue.length}{copy.queuePending}
+            {isLogistics ? copy.queueHintLogistics : copy.queueHintAdmin}
             <Link
               href="/history"
               className="font-medium text-[#e30613] underline-offset-4 hover:underline"
             >
-              requests history
+              {copy.queueHistoryLink}
             </Link>
           </p>
         </div>
@@ -221,16 +224,15 @@ export default async function DashboardHomePage() {
         <section className="space-y-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-              Waiting for final approval
+              {copy.waitingTitle}
             </h2>
             <p className="text-sm text-slate-500">
-              {waitingForFinalApproval.length} request
-              {waitingForFinalApproval.length === 1 ? "" : "s"} · read only
+              {copy.waitingCount(waitingForFinalApproval.length)}
             </p>
           </div>
           {waitingForFinalApproval.length === 0 ? (
             <div className="glass-panel rounded-2xl px-5 py-6 text-center text-sm text-slate-500">
-              No requests are waiting for final approval at your assigned locations.
+              {copy.waitingEmpty}
             </div>
           ) : (
             <div className="grid gap-3">
@@ -242,25 +244,25 @@ export default async function DashboardHomePage() {
                 >
                   <div className="min-w-0">
                     <p className="font-semibold text-slate-900">
-                      {compactIdentity(request.vehicles)}
-                      <span className="ml-2 font-normal text-slate-500">
-                        {request.employees?.full_name ?? request.requester?.full_name ?? "Requester"}
+                      {compactIdentity(request.vehicles, copy)}
+                      <span className="ms-2 font-normal text-slate-500">
+                        {request.employees?.full_name ?? request.requester?.full_name ?? copy.requesterFallback}
                       </span>
                     </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      {request.location ?? "Assigned location"}
+                      {request.location ?? copy.locationFallback}
                       {request.first_approver?.full_name
-                        ? ` · Logistics approved by ${request.first_approver.full_name}`
+                        ? copy.logisticsApprovedBy(request.first_approver.full_name)
                         : ""}
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-col items-start gap-1 sm:items-end">
                     <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
-                      Logistics approved — waiting for final approval
+                      {t.common.approval.waitingFinal}
                     </span>
                     {request.first_approved_at ? (
                       <span className="text-xs text-slate-500">
-                        {formatDecisionTime(request.first_approved_at)}
+                        {formatDecisionTime(request.first_approved_at, locale)}
                       </span>
                     ) : null}
                   </div>
@@ -274,15 +276,15 @@ export default async function DashboardHomePage() {
       <div className="grid gap-5 xl:grid-cols-3">
         <SectionCard
           className="xl:col-span-2"
-          meta={expiring.length > 0 ? `${expiring.length} soon` : undefined}
-          title="Expiring within 7 days"
-          description="Approved authorizations that need renewal attention"
+          meta={expiring.length > 0 ? copy.expiringMeta(expiring.length) : undefined}
+          title={copy.expiringTitle}
+          description={copy.expiringDescription}
           href="/history"
-          linkLabel="Open history"
+          linkLabel={copy.openHistory}
         >
           {expiring.length === 0 ? (
             <p className="py-6 text-center text-sm text-slate-400">
-              Nothing expires in the next 7 days.
+              {copy.expiringEmpty}
             </p>
           ) : (
             <ul className="divide-y divide-slate-100">
@@ -300,13 +302,13 @@ export default async function DashboardHomePage() {
                   >
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-slate-900">
-                        {compactIdentity(vehicle)}
-                        <span className="ml-2 font-normal text-slate-500">
-                          {vehicleLabel(vehicle)}
+                        {compactIdentity(vehicle, copy)}
+                        <span className="ms-2 font-normal text-slate-500">
+                          {vehicleLabel(vehicle, copy)}
                         </span>
                       </p>
                       <p className="text-xs text-slate-500">
-                        Ends {formatDate(item.end_date)}
+                        {copy.ends(formatDate(item.end_date, intl))}
                       </p>
                     </div>
                     <span
@@ -317,9 +319,7 @@ export default async function DashboardHomePage() {
                       }
                     >
                       <TriangleAlert className="size-3.5" />
-                      {daysLeft === 0
-                        ? "Ends today"
-                        : `${daysLeft} day${daysLeft === 1 ? "" : "s"} left`}
+                      {daysLeft === 0 ? copy.endsToday : copy.daysLeft(daysLeft)}
                     </span>
                   </li>
                 );
@@ -329,11 +329,9 @@ export default async function DashboardHomePage() {
         </SectionCard>
 
         <SectionCard
-          title="Status breakdown"
+          title={copy.statusTitle}
           description={
-            isLogistics
-              ? "Authorizations at your assigned locations"
-              : "Authorizations assigned to you"
+            isLogistics ? copy.statusDescLogistics : copy.statusDescAdmin
           }
         >
           <StatusBreakdown items={breakdown} />
@@ -344,25 +342,25 @@ export default async function DashboardHomePage() {
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <header className="border-b border-slate-100 px-5 py-4">
           <h2 className="text-sm font-semibold tracking-tight text-slate-900">
-            Last 90 days
+            {copy.insightsTitle}
           </h2>
           <p className="text-xs text-slate-500">
-            Decision performance across the fleet
+            {copy.insightsDescription}
           </p>
         </header>
         <div className="grid divide-slate-100 sm:grid-cols-2 sm:divide-x xl:grid-cols-4">
           <InsightTile
-            label="Requests submitted"
+            label={copy.submitted}
             value={insights.total.toString()}
-            hint={`${insights.decided} decided · ${insights.pending} still pending`}
+            hint={copy.submittedHint(insights.decided, insights.pending)}
           />
           <InsightTile
-            label="Approval rate"
+            label={copy.approvalRate}
             value={insights.decided === 0 ? "—" : `${insights.approvalRate}%`}
             hint={
               insights.decided === 0
-                ? "No decisions recorded yet"
-                : `${insights.approved} approved · ${insights.rejected} rejected`
+                ? copy.noDecisions
+                : copy.approvedRejected(insights.approved, insights.rejected)
             }
             tone={
               insights.decided === 0
@@ -373,20 +371,20 @@ export default async function DashboardHomePage() {
             }
           />
           <InsightTile
-            label="Average decision time"
+            label={copy.avgDecision}
             value={
               insights.avgDecisionHours === null
                 ? "—"
-                : formatHours(insights.avgDecisionHours)
+                : formatHours(insights.avgDecisionHours, copy)
             }
             hint={
               insights.avgDecisionHours === null
-                ? "Waiting on the first decision"
-                : "From submission to approve or reject"
+                ? copy.waitingFirstDecision
+                : copy.decisionSpan
             }
           />
           <InsightTile
-            label="Most requested vehicle"
+            label={copy.topVehicle}
             value={
               insights.topVehicle
                 ? `${insights.topVehicle.doorNumber ? `${insights.topVehicle.doorNumber} · ` : ""}${insights.topVehicle.plate}`
@@ -394,10 +392,8 @@ export default async function DashboardHomePage() {
             }
             hint={
               insights.topVehicle
-                ? `${insights.topVehicle.count} request${
-                    insights.topVehicle.count === 1 ? "" : "s"
-                  } in this period`
-                : "No requests in this period"
+                ? copy.topVehicleHint(insights.topVehicle.count)
+                : copy.noRequestsPeriod
             }
           />
         </div>
@@ -475,10 +471,10 @@ function summarizeInsights(rows: InsightRow[]) {
   };
 }
 
-function formatHours(hours: number): string {
-  if (hours < 1) return `${Math.max(1, Math.round(hours * 60))} min`;
-  if (hours < 48) return `${hours.toFixed(1)} h`;
-  return `${(hours / 24).toFixed(1)} d`;
+function formatHours(hours: number, copy: HomeCopy): string {
+  if (hours < 1) return copy.minutes(Math.max(1, Math.round(hours * 60)));
+  if (hours < 48) return copy.hours(hours.toFixed(1));
+  return copy.days((hours / 24).toFixed(1));
 }
 
 function InsightTile({
@@ -501,7 +497,7 @@ function InsightTile({
 
   return (
     <div className="border-b border-slate-100 p-5 last:border-b-0 sm:border-b-0">
-      <p className="text-[11px] font-semibold tracking-[0.14em] text-slate-400 uppercase">
+      <p className="text-[11px] font-semibold tracking-[0.14em] text-slate-400 uppercase rtl:tracking-normal">
         {label}
       </p>
       <p

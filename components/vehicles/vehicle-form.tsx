@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { Vehicle } from "@/types/database";
 import { isDoorNumberPlate } from "@/components/vehicles/plate-label";
+import { useI18n } from "@/lib/i18n/client";
 
 export type VehicleFormState = {
   door_number: string;
@@ -50,6 +51,8 @@ export function VehicleForm({
   onSubmit,
   onCancel,
 }: VehicleFormProps) {
+  const { t, tm } = useI18n();
+  const copy = t.vehicles.form;
   const [values, setValues] = useState<VehicleFormState>(() =>
     vehicleToFormState(initial),
   );
@@ -70,30 +73,32 @@ export function VehicleForm({
     <form className="space-y-5" onSubmit={handleSubmit}>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="door_number">Door number (optional)</Label>
+          <Label htmlFor="door_number">{copy.doorNumber}</Label>
           <Input
             id="door_number"
             value={values.door_number}
             onChange={(e) => update("door_number", e.target.value)}
             disabled={pending}
             maxLength={64}
+            dir="ltr"
             className="h-11 rounded-xl"
-            placeholder="e.g. 006-01-736"
+            placeholder={copy.doorPlaceholder}
           />
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="plate_number">Plate number (optional)</Label>
+          <Label htmlFor="plate_number">{copy.plateNumber}</Label>
           <Input
             id="plate_number"
             value={values.plate_number}
             onChange={(e) => update("plate_number", e.target.value)}
             disabled={pending}
+            dir="ltr"
             className="h-11 rounded-xl"
-            placeholder="Actual registration plate, if known"
+            placeholder={copy.platePlaceholder}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="make">Make</Label>
+          <Label htmlFor="make">{copy.make}</Label>
           <Input
             id="make"
             required
@@ -105,7 +110,7 @@ export function VehicleForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="model">Model</Label>
+          <Label htmlFor="model">{copy.model}</Label>
           <Input
             id="model"
             required
@@ -117,7 +122,7 @@ export function VehicleForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="year">Year</Label>
+          <Label htmlFor="year">{copy.year}</Label>
           <Input
             id="year"
             type="number"
@@ -126,29 +131,30 @@ export function VehicleForm({
             value={values.year}
             onChange={(e) => update("year", e.target.value)}
             disabled={pending}
+            dir="ltr"
             className="h-11 rounded-xl"
-            placeholder="Optional"
+            placeholder={copy.optional}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="color">Color</Label>
+          <Label htmlFor="color">{copy.color}</Label>
           <Input
             id="color"
             value={values.color}
             onChange={(e) => update("color", e.target.value)}
             disabled={pending}
             className="h-11 rounded-xl"
-            placeholder="Optional"
+            placeholder={copy.optional}
           />
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="notes">Notes</Label>
+          <Label htmlFor="notes">{copy.notes}</Label>
           <Textarea
             id="notes"
             value={values.notes}
             onChange={(e) => update("notes", e.target.value)}
             disabled={pending}
-            placeholder="Optional fleet notes"
+            placeholder={copy.notesPlaceholder}
             className="min-h-24 rounded-xl"
           />
         </div>
@@ -159,7 +165,7 @@ export function VehicleForm({
           className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
           role="alert"
         >
-          {error}
+          {tm(error)}
         </p>
       ) : null}
 
@@ -172,11 +178,11 @@ export function VehicleForm({
             onClick={onCancel}
             disabled={pending}
           >
-            Cancel
+            {copy.cancel}
           </Button>
         ) : null}
         <Button type="submit" className="rounded-full" disabled={pending}>
-          {pending ? "Saving…" : submitLabel}
+          {pending ? copy.saving : submitLabel}
         </Button>
       </div>
     </form>

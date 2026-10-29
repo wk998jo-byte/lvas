@@ -1,5 +1,5 @@
 import { effectiveAuthorizationStatus } from "@/lib/authorizations/effective-status";
-import { BUSINESS_TIME_ZONE, FIXED_USAGE_AFTER, saudiTodayIsoDate } from "@/lib/business-date";
+import { BUSINESS_TIME_ZONE, normalizeAllowedUsageAfter, saudiTodayIsoDate } from "@/lib/business-date";
 import type { AuthorizationStatus } from "@/types/database";
 
 /** Read-only input. No contact, ID fragments, justification or approver data. */
@@ -72,10 +72,12 @@ export function evaluateGateAuthorization(
   if (!row.vehicle || !row.requester || !row.requester.full_name?.trim()) {
     return gateResult("invalid", "Required vehicle or requester is unavailable.", now);
   }
-  // Corrupt/legacy non-fixed usage rules are denied, never silently reinterpreted.
-  if (row.usage_after !== FIXED_USAGE_AFTER && row.usage_after !== FIXED_USAGE_AFTER.slice(0, 5)) {
+  // Corrupt/legacy usage rules are denied, never silently reinterpreted.
+  const usageAfter = normalizeAllowedUsageAfter(row.usage_after);
+  if (!usageAfter) {
     return gateResult("invalid", "Authorization usage rule is not valid.", now);
   }
+  const usageAfterLabel = usageAfter.slice(0, 5);
   if (today < row.start_date) {
     return gateResult("not_yet_valid", "Authorization not yet valid.", now);
   }
@@ -83,8 +85,8 @@ export function evaluateGateAuthorization(
     timeZone: BUSINESS_TIME_ZONE, hour: "2-digit", minute: "2-digit", second: "2-digit",
     hourCycle: "h23",
   }).format(now);
-  if (clock < FIXED_USAGE_AFTER) {
-    return gateResult("not_yet_valid", "Valid only after 19:00 Saudi time.", now);
+  if (clock < usageAfter) {
+    return gateResult("not_yet_valid", `Valid only after ${usageAfterLabel} Saudi time.`, now);
   }
   return {
     ...gateResult("valid", "Approved for after-hours use.", now),
@@ -97,7 +99,7 @@ export function evaluateGateAuthorization(
       location: row.location,
       startDate: row.start_date,
       endDate: row.end_date,
-      usageAfter: "19:00",
+      usageAfter: usageAfterLabel,
       reference: row.id.slice(0, 8).toUpperCase(),
     },
   };

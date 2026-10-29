@@ -103,6 +103,7 @@ export const publicRequestSchema = authorizationFieldsSchema
     location: z.enum(PROJECT_LOCATIONS, {
       error: "Select your project location",
     }),
+    extended_time: z.boolean({ error: "Choose whether you need extended time" }).default(false),
     justification: z
       .string()
       .trim()

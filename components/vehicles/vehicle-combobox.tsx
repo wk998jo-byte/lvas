@@ -3,19 +3,26 @@
 import { Combobox } from "@base-ui/react/combobox";
 import { Car, Check, ChevronsUpDown, Search, X } from "lucide-react";
 
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/config";
+import { useI18n } from "@/lib/i18n/client";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 import { plateLabel, matchesVehicleSearch } from "@/lib/vehicles/identity";
 import { cn } from "@/lib/utils";
 import type { Vehicle } from "@/types/database";
 
-export function vehicleLabel(vehicle: VehicleOption): string {
-  return `${vehicleIdentity(vehicle)} — ${vehicle.make} ${vehicle.model}`;
+export function vehicleLabel(
+  vehicle: VehicleOption,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return `${vehicleIdentity(vehicle, locale)} — ${vehicle.make} ${vehicle.model}`;
 }
 
-function vehicleIdentity(vehicle: VehicleOption) {
+function vehicleIdentity(vehicle: VehicleOption, locale: Locale) {
+  const copy = getDictionary(locale).public.vehicle;
   const door = vehicle.door_number?.trim();
   const plate = plateLabel(vehicle);
-  return `${door ? `Door ${door}` : "Door No. unavailable"} — ${
-    plate === "Plate unavailable" ? plate : `Plate ${plate}`
+  return `${door ? copy.door(door) : copy.doorUnavailable} — ${
+    plate === "Plate unavailable" ? copy.plateUnavailable : copy.plate(plate)
   }`;
 }
 
@@ -42,6 +49,8 @@ export function VehicleCombobox({
   onValueChange,
   disabled,
 }: VehicleComboboxProps) {
+  const { t, locale } = useI18n();
+  const copy = t.public.vehicle;
   return (
     <Combobox.Root<VehicleOption>
       items={vehicles}
@@ -50,27 +59,27 @@ export function VehicleCombobox({
       disabled={disabled}
       autoHighlight
       limit={60}
-      itemToStringLabel={vehicleLabel}
+      itemToStringLabel={(vehicle) => vehicleLabel(vehicle, locale)}
       itemToStringValue={(vehicle) => vehicle.id}
       isItemEqualToValue={(a, b) => a.id === b.id}
        filter={(vehicle, query) => matchesVehicleSearch(vehicle, query)}
     >
       <Combobox.InputGroup className="relative">
-        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+        <Search className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-slate-400" />
         <Combobox.Input
           id={id}
-          placeholder="Search door number, plate, make, or model…"
-          className="h-11 w-full rounded-xl border border-slate-200/80 bg-white/90 pr-16 pl-10 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus-visible:border-[#e30613]/40 focus-visible:ring-3 focus-visible:ring-[#e30613]/15 disabled:opacity-50"
+          placeholder={copy.searchPlaceholder}
+          className="h-11 w-full rounded-xl border border-slate-200/80 bg-white/90 pe-16 ps-10 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus-visible:border-[#e30613]/40 focus-visible:ring-3 focus-visible:ring-[#e30613]/15 disabled:opacity-50"
         />
-        <div className="absolute inset-y-0 right-1 flex items-center">
+        <div className="absolute inset-y-0 end-1 flex items-center">
           <Combobox.Clear
-            aria-label="Clear selection"
+            aria-label={copy.clearSelection}
             className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
           >
             <X className="size-4" />
           </Combobox.Clear>
           <Combobox.Trigger
-            aria-label="Open vehicle list"
+            aria-label={copy.openList}
             className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
           >
             <ChevronsUpDown className="size-4" />
@@ -82,7 +91,7 @@ export function VehicleCombobox({
         <Combobox.Positioner sideOffset={6} className="z-50 outline-none">
           <Combobox.Popup className="max-h-[min(22rem,var(--available-height))] w-[var(--anchor-width)] max-w-[var(--available-width)] origin-[var(--transform-origin)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl transition-[transform,opacity] duration-100 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0">
             <Combobox.Empty className="px-4 py-6 text-center text-sm text-slate-500">
-              No vehicle matches your search.
+              {copy.noMatches}
             </Combobox.Empty>
             <Combobox.List className="max-h-[min(22rem,var(--available-height))] overflow-y-auto overscroll-contain p-1.5 data-empty:p-0">
               {(vehicle: VehicleOption) => (
@@ -99,7 +108,7 @@ export function VehicleCombobox({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold text-slate-900">
-                      {vehicleIdentity(vehicle)}
+                      {vehicleIdentity(vehicle, locale)}
                     </span>
                     <span className="block truncate text-xs text-slate-500">
                       {vehicle.make} {vehicle.model}

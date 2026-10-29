@@ -1,3 +1,5 @@
+import { DEFAULT_LOCALE, intlLocale, type Locale } from "@/lib/i18n/config";
+
 export type ActiveAuthorizationConflict = {
   id: string;
   authorized_to: string;
@@ -21,9 +23,12 @@ export function datesOverlap(
   return startA <= endB && endA >= startB;
 }
 
-export function formatAuthorizationDate(value: string): string {
+export function formatAuthorizationDate(
+  value: string,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
   try {
-    return new Intl.DateTimeFormat("en-GB", {
+    return new Intl.DateTimeFormat(intlLocale(locale), {
       day: "2-digit",
       month: "short",
       year: "numeric",

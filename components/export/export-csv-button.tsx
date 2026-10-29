@@ -4,6 +4,7 @@ import { Download } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { downloadCsv } from "@/lib/export/csv";
+import { useI18n } from "@/lib/i18n/client";
 
 type ExportCsvButtonProps = {
   filename: string;
@@ -15,9 +16,11 @@ type ExportCsvButtonProps = {
 export function ExportCsvButton({
   filename,
   rows,
-  label = "Export to CSV",
+  label,
   disabled,
 }: ExportCsvButtonProps) {
+  const { t } = useI18n();
+
   return (
     <Button
       type="button"
@@ -28,7 +31,7 @@ export function ExportCsvButton({
       onClick={() => downloadCsv(filename, rows)}
     >
       <Download className="size-3.5" />
-      {label}
+      {label ?? t.approvals.exportCsv.button}
     </Button>
   );
 }

@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 
 import { AmbientBackdrop } from "@/components/brand/ambient-backdrop";
 import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
+import { getI18n } from "@/lib/i18n/server";
 
-export const metadata: Metadata = {
-  title: "Forgot password",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return { title: t.auth.metadata.forgotPassword };
+}
 
 export const dynamic = "force-dynamic";
 

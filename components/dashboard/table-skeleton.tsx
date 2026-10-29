@@ -20,7 +20,7 @@ export function TableSkeleton({ rows = 5 }: { rows?: number }) {
               <Skeleton className="h-4 w-32" />
               <Skeleton className="h-4 w-40" />
               <Skeleton className="h-4 w-28" />
-              <Skeleton className="ml-auto h-8 w-28" />
+              <Skeleton className="ms-auto h-8 w-28" />
             </div>
           ))}
         </div>
