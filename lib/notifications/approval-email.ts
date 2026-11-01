@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import { sendSmtpEmail } from "@/lib/auth/mail";
-import { isExtendedUsageAfter } from "@/lib/business-date";
 import {
   getApprovalEmailContext,
   getApprovalEmailRecipient,
@@ -86,7 +85,9 @@ export async function notifyApprovalEvent(input: ApprovalEventInput): Promise<vo
         `Location: ${context.location ?? "Not available"}`,
         `Start date: ${context.start_date}`,
         `End date: ${context.end_date}`,
-        `Vehicle use after: ${context.usage_after.slice(0, 5)} Saudi time${isExtendedUsageAfter(context.usage_after) ? " (extended time)" : ""}`,
+        context.usage_until
+          ? `Vehicle use: ${context.usage_after.slice(0, 5)}–${context.usage_until.slice(0, 5)} Saudi time on each approved date (extended hours)`
+          : `Vehicle use after: ${context.usage_after.slice(0, 5)} Saudi time`,
         `Purpose/justification: ${context.purpose ?? "Not provided"}`,
         ...(input.event === "ready_for_final_approval" ? [
           `Logistics approver: ${context.logistics_approver_name ?? "Not available"}`,

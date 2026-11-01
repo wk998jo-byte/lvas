@@ -5,21 +5,45 @@ export const BUSINESS_TIME_ZONE = "Asia/Riyadh";
 /** Standard after-hours clock stored on every authorization. */
 export const FIXED_USAGE_AFTER = "19:00:00";
 
-/** Start clock when the employee asks for 2 hours of extended time. */
-export const EXTENDED_USAGE_AFTER = "21:00:00";
+/**
+ * Legacy start clock from the retired "extended time" question. New requests
+ * never store it, but rows created while it was live stay readable.
+ */
+export const LEGACY_EXTENDED_USAGE_AFTER = "21:00:00";
 
-export type UsageAfter = typeof FIXED_USAGE_AFTER | typeof EXTENDED_USAGE_AFTER;
+/** End clock of an extended-hours authorization (19:00–21:00 on each date). */
+export const EXTENDED_HOURS_UNTIL = "21:00:00";
+
+export type UsageAfter = typeof FIXED_USAGE_AFTER | typeof LEGACY_EXTENDED_USAGE_AFTER;
+
+function fullClock(value: string): string {
+  return value.length === 5 ? `${value}:00` : value;
+}
 
 /** Accepts HH:MM or HH:MM:SS; anything other than 19:00 or 21:00 is null. */
 export function normalizeAllowedUsageAfter(value: string | null | undefined): UsageAfter | null {
   if (typeof value !== "string") return null;
-  const full = value.length === 5 ? `${value}:00` : value;
-  if (full === FIXED_USAGE_AFTER || full === EXTENDED_USAGE_AFTER) return full;
+  const full = fullClock(value);
+  if (full === FIXED_USAGE_AFTER || full === LEGACY_EXTENDED_USAGE_AFTER) return full;
   return null;
 }
 
-export function isExtendedUsageAfter(value: string | null | undefined): boolean {
-  return normalizeAllowedUsageAfter(value) === EXTENDED_USAGE_AFTER;
+/** Extended-hours authorizations are the only ones with an end clock. */
+export function isExtendedHours(usageUntil: string | null | undefined): boolean {
+  return typeof usageUntil === "string" && fullClock(usageUntil) === EXTENDED_HOURS_UNTIL;
+}
+
+/**
+ * "19:00–21:00" for extended hours, "19:00" otherwise. Isolated LTR so the
+ * range keeps its order inside Arabic text.
+ */
+export function formatUsageWindow(
+  usageAfter: string,
+  usageUntil: string | null | undefined,
+): string {
+  const from = usageAfter.slice(0, 5);
+  if (!usageUntil) return from;
+  return `\u2066${from}–${usageUntil.slice(0, 5)}\u2069`;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;

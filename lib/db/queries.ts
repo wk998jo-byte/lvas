@@ -63,7 +63,7 @@ export type AuthorizationDetailRow = Authorization & {
 const AUTHORIZATION_LIST_SELECT = `
   a.id, a.vehicle_id, a.requester_id, a.employee_id, a.public_token,
   a.contact_mobile, a.approver_id, a.status, a.start_date::text as start_date,
-  a.end_date::text as end_date, a.duration_label, a.usage_after::text as usage_after,
+  a.end_date::text as end_date, a.duration_label, a.usage_after::text as usage_after, a.usage_until::text as usage_until,
   a.purpose, a.rejection_reason, a.location, a.justification, a.approval_stage,
   a.first_approver_id, a.first_approved_at, a.approved_at, a.rejected_at,
   a.created_at, a.updated_at,
@@ -238,24 +238,6 @@ export async function setVehicleActive(id: string, isActive: boolean) {
   await query(`update vehicles set is_active = $2 where id = $1`, [id, isActive]);
 }
 
-export async function lookupPublicEmployees(
-  term: string,
-  limit = 8,
-): Promise<PublicEmployee[]> {
-  const pattern = likeContains(term);
-  return query<PublicEmployee>(
-    `
-      select id, badge, full_name, department, position, role
-      from employees
-      where badge ilike $1
-         or full_name ilike $1
-      order by full_name asc
-      limit $2
-    `,
-    [pattern, limit],
-  );
-}
-
 export async function getEmployeeByBadge(
   badge: string,
 ): Promise<(PublicEmployee & { national_id: string | null }) | null> {
@@ -278,6 +260,7 @@ export type BadgeAuthorizationRow = {
   end_date: string;
   duration_label: string;
   usage_after: string;
+  usage_until: string | null;
   purpose: string | null;
   rejection_reason: string | null;
   location: string | null;
@@ -301,7 +284,7 @@ export async function listAuthorizationsByEmployeeId(
         a.start_date::text as start_date,
         a.end_date::text as end_date,
         a.duration_label,
-        a.usage_after::text as usage_after,
+        a.usage_after::text as usage_after, a.usage_until::text as usage_until,
         a.purpose,
         a.rejection_reason,
         a.location,
@@ -318,19 +301,6 @@ export async function listAuthorizationsByEmployeeId(
       limit 50
     `,
     [employeeId],
-  );
-}
-
-export async function getEmployeeForVerify(
-  id: string,
-): Promise<(PublicEmployee & { national_id: string | null }) | null> {
-  return queryOne<PublicEmployee & { national_id: string | null }>(
-    `
-      select id, badge, full_name, department, position, role, national_id
-      from employees
-      where id = $1
-    `,
-    [id],
   );
 }
 
@@ -519,17 +489,25 @@ export async function deleteOtherSessions(profileId: string, currentTokenHash: s
   );
 }
 
-export async function getLastLimitRequestAt(employeeId: string): Promise<string | null> {
+/**
+ * Standard and extended-hours requests have separate allowances, so each
+ * kind only looks at its own previous request.
+ */
+export async function getLastLimitRequestAt(
+  employeeId: string,
+  kind: "standard" | "extended_hours" = "standard",
+): Promise<string | null> {
   const row = await queryOne<{ created_at: string }>(
     `
       select created_at
       from authorizations
       where employee_id = $1
         and status in ('pending', 'approved')
+        and (usage_until is not null) = $2
       order by created_at desc
       limit 1
     `,
-    [employeeId],
+    [employeeId, kind === "extended_hours"],
   );
   return row?.created_at ?? null;
 }
@@ -648,6 +626,7 @@ export async function insertAuthorization(input: {
   end_date: string;
   duration_label: string;
   usage_after: string;
+  usage_until: string | null;
   purpose: string | null;
   contact_mobile: string;
   location: string;
@@ -657,10 +636,10 @@ export async function insertAuthorization(input: {
     `
       insert into authorizations (
         vehicle_id, employee_id, requester_id, approver_id, status,
-        start_date, end_date, duration_label, usage_after, purpose, contact_mobile,
+        start_date, end_date, duration_label, usage_after, usage_until, purpose, contact_mobile,
         location, justification, approval_stage
       )
-      values ($1, $2, null, $3, 'pending', $4, $5, $6, $7, $8, $9, $10, $11, 1)
+      values ($1, $2, null, $3, 'pending', $4, $5, $6, $7, $8, $9, $10, $11, $12, 1)
       returning id, public_token
     `,
     [
@@ -671,6 +650,7 @@ export async function insertAuthorization(input: {
       input.end_date,
       input.duration_label,
       input.usage_after,
+      input.usage_until,
       input.purpose,
       input.contact_mobile,
       input.location,
@@ -716,7 +696,7 @@ export async function getAuthorizationById(id: string): Promise<Authorization | 
     `
       select id, vehicle_id, requester_id, employee_id, public_token, contact_mobile,
              approver_id, status, start_date::text as start_date, end_date::text as end_date,
-             duration_label, usage_after::text as usage_after, purpose, rejection_reason,
+             duration_label, usage_after::text as usage_after, usage_until::text as usage_until, purpose, rejection_reason,
              location, justification, approval_stage, first_approver_id, first_approved_at,
              approved_at, rejected_at, rejected_by_id, created_at, updated_at
       from authorizations
@@ -776,6 +756,7 @@ export type ApprovalEmailContext = {
   start_date: string;
   end_date: string;
   usage_after: string;
+  usage_until: string | null;
   purpose: string | null;
   logistics_approver_name: string | null;
   first_approved_at: string | null;
@@ -785,7 +766,7 @@ export async function getApprovalEmailContext(id: string): Promise<ApprovalEmail
   return queryOne<ApprovalEmailContext>(
     `select coalesce(e.full_name,p.full_name) as requester_name,e.badge,
        v.door_number,v.make,v.model,a.location,
-       a.start_date::text,a.end_date::text,a.usage_after::text as usage_after,
+       a.start_date::text,a.end_date::text,a.usage_after::text as usage_after, a.usage_until::text as usage_until,
        coalesce(a.justification,a.purpose) as purpose,
        fp.full_name as logistics_approver_name,a.first_approved_at
      from authorizations a
@@ -844,7 +825,7 @@ export async function getExpiryEmailContext(input: {
     `select p.email as recipient_email,a.status,
        coalesce(e.full_name,r.full_name) as requester_name,e.badge,
        v.door_number,v.make,v.model,a.location,
-       a.start_date::text,a.end_date::text,a.usage_after::text as usage_after,
+       a.start_date::text,a.end_date::text,a.usage_after::text as usage_after, a.usage_until::text as usage_until,
        coalesce(a.justification,a.purpose) as purpose
      from authorizations a
      join profiles p on p.id=$2 and p.is_active=true and p.role='logistics_approver'
@@ -871,7 +852,7 @@ export async function getAuthorizationDetail(
       select
         a.id, a.vehicle_id, a.requester_id, a.employee_id, a.public_token,
         a.contact_mobile, a.approver_id, a.status, a.start_date::text as start_date,
-        a.end_date::text as end_date, a.duration_label, a.usage_after::text as usage_after,
+        a.end_date::text as end_date, a.duration_label, a.usage_after::text as usage_after, a.usage_until::text as usage_until,
         a.purpose, a.rejection_reason, a.location, a.justification, a.approval_stage,
         a.first_approver_id, a.first_approved_at, a.approved_at, a.rejected_at,
         a.rejected_by_id, a.created_at, a.updated_at,
@@ -916,6 +897,7 @@ export async function getAuthorizationByPublicToken(token: string) {
     end_date: string;
     duration_label: string;
     usage_after: string;
+    usage_until: string | null;
     purpose: string | null;
     rejection_reason: string | null;
     location: string | null;
@@ -928,7 +910,7 @@ export async function getAuthorizationByPublicToken(token: string) {
     `
       select
         a.id, a.status, a.start_date::text as start_date, a.end_date::text as end_date,
-        a.duration_label, a.usage_after::text as usage_after, a.purpose,
+        a.duration_label, a.usage_after::text as usage_after, a.usage_until::text as usage_until, a.purpose,
         a.rejection_reason, a.location, a.justification, a.approval_stage, a.created_at,
         case when v.id is null then null else jsonb_build_object(
           'door_number', v.door_number, 'plate_number', v.plate_number, 'make', v.make, 'model', v.model
@@ -1197,7 +1179,7 @@ export async function advanceToFinalApproval(input: {
       returning
         id, vehicle_id, requester_id, employee_id, public_token, contact_mobile,
         approver_id, status, start_date::text as start_date, end_date::text as end_date,
-        duration_label, usage_after::text as usage_after, purpose, rejection_reason,
+        duration_label, usage_after::text as usage_after, usage_until::text as usage_until, purpose, rejection_reason,
         location, justification, approval_stage, first_approver_id, first_approved_at,
         approved_at, rejected_at, created_at, updated_at
     `,
@@ -1270,7 +1252,7 @@ export async function approvePendingAuthorization(input: {
       returning
         id, vehicle_id, requester_id, employee_id, public_token, contact_mobile,
         approver_id, status, start_date::text as start_date, end_date::text as end_date,
-        duration_label, usage_after::text as usage_after, purpose, rejection_reason,
+        duration_label, usage_after::text as usage_after, usage_until::text as usage_until, purpose, rejection_reason,
         location, justification, approval_stage, first_approver_id, first_approved_at,
         approved_at, rejected_at, created_at, updated_at
     `,
@@ -1290,7 +1272,7 @@ export async function cancelApprovedAuthorization(
       returning
         id, vehicle_id, requester_id, employee_id, public_token, contact_mobile,
         approver_id, status, start_date::text as start_date, end_date::text as end_date,
-        duration_label, usage_after::text as usage_after, purpose, rejection_reason,
+        duration_label, usage_after::text as usage_after, usage_until::text as usage_until, purpose, rejection_reason,
         location, justification, approval_stage, first_approver_id, first_approved_at,
         approved_at, rejected_at, created_at, updated_at
     `,
@@ -1320,7 +1302,7 @@ export async function rejectPendingAuthorization(input: {
       returning
         id, vehicle_id, requester_id, employee_id, public_token, contact_mobile,
         approver_id, status, start_date::text as start_date, end_date::text as end_date,
-        duration_label, usage_after::text as usage_after, purpose, rejection_reason,
+        duration_label, usage_after::text as usage_after, usage_until::text as usage_until, purpose, rejection_reason,
         location, justification, approval_stage, first_approver_id, first_approved_at,
         approved_at, rejected_at, rejected_by_id, created_at, updated_at
     `,
@@ -1360,7 +1342,7 @@ export async function listApprovedEndingBetween(input: {
       select
         a.id, a.vehicle_id, a.requester_id, a.employee_id, a.public_token,
         a.contact_mobile, a.approver_id, a.status, a.start_date::text as start_date,
-        a.end_date::text as end_date, a.duration_label, a.usage_after::text as usage_after,
+        a.end_date::text as end_date, a.duration_label, a.usage_after::text as usage_after, a.usage_until::text as usage_until,
         a.purpose, a.rejection_reason, a.location, a.justification, a.approval_stage,
         a.first_approver_id, a.first_approved_at, a.approved_at, a.rejected_at,
         a.created_at, a.updated_at,

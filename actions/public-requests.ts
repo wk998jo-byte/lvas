@@ -9,10 +9,13 @@ import {
   cooldownMessage,
   durationExceedsLimit,
   durationLimitMessage,
+  EXTENDED_HOURS_LIMIT,
+  extendedHoursCooldownMessage,
+  extendedHoursDurationMessage,
   getRoleRequestLimit,
 } from "@/lib/authorizations/limits";
 import {
-  EXTENDED_USAGE_AFTER,
+  EXTENDED_HOURS_UNTIL,
   FIXED_USAGE_AFTER,
   isOnOrAfterSaudiToday,
 } from "@/lib/business-date";
@@ -22,19 +25,16 @@ import {
 import {
   getEligibleFinalApproverIdForLocation,
   getEmployeeByBadge,
-  getEmployeeForVerify,
   getLastLimitRequestAt,
   getVehicleById,
   insertAuthorization,
   listAuthorizationsByEmployeeId,
   listLogisticsApproverIdsForLocation,
-  lookupPublicEmployees,
   type BadgeAuthorizationRow,
   type PublicEmployee,
 } from "@/lib/db/queries";
 import {
   badgeStatusSchema,
-  employeeLookupSchema,
   employeeVerifySchema,
   publicRequestSchema,
 } from "@/lib/validations";
@@ -48,32 +48,7 @@ import { notifyApprovalEvent } from "@/lib/notifications/approval-email";
 
 export type { PublicEmployee };
 
-const LOOKUP_LIMIT = 8;
-
-function escapeSearch(value: string): string {
-  return value.replace(/[,()]/g, " ").trim();
-}
-
-export async function lookupEmployees(
-  input: unknown,
-): Promise<ActionResult<PublicEmployee[]>> {
-  const parsed = employeeLookupSchema.safeParse(input);
-  if (!parsed.success) {
-    return fail(parsed.error.issues[0]?.message ?? "Invalid search");
-  }
-
-  const term = escapeSearch(parsed.data.query);
-  if (term.length < 3) return ok([]);
-
-  try {
-    if (!(await consumeRateLimit("employeeSearch")).allowed) return fail(TOO_MANY_ATTEMPTS);
-    const data = await lookupPublicEmployees(term, LOOKUP_LIMIT);
-    return ok(data);
-  } catch {
-    return fail(SAFE_REQUEST_ERROR);
-  }
-}
-
+/** Names are only returned after the exact badge and ID digits both match. */
 export async function verifyEmployee(
   input: unknown,
 ): Promise<ActionResult<PublicEmployee>> {
@@ -82,20 +57,18 @@ export async function verifyEmployee(
     return fail(parsed.error.issues[0]?.message ?? "Invalid verification");
   }
 
-  return findVerifiedEmployee({ employeeId: parsed.data.employee_id, idLast4: parsed.data.id_last4 });
+  return findVerifiedEmployee({ badge: parsed.data.badge, idLast4: parsed.data.id_last4 });
 }
 
 async function findVerifiedEmployee(
-  input: { employeeId?: string; badge?: string; idLast4: string },
+  input: { badge: string; idLast4: string },
 ): Promise<ActionResult<PublicEmployee>> {
   try {
     if (!(await consumeRateLimit("identityNetwork")).allowed) return fail(TOO_MANY_ATTEMPTS);
-    const data = input.employeeId
-      ? await getEmployeeForVerify(input.employeeId)
-      : await getEmployeeByBadge(input.badge!);
+    const data = await getEmployeeByBadge(input.badge);
     // One shared badge budget across verification, submission and tracking;
     // neither endpoint-switching nor IP rotation resets the failure limit.
-    const permit = await consumeRateLimit("identity", data?.badge ?? input.employeeId ?? input.badge);
+    const permit = await consumeRateLimit("identity", data?.badge ?? input.badge);
     if (!permit.allowed) return fail(TOO_MANY_ATTEMPTS);
 
     const digits = (data?.national_id ?? "").replace(/\D/g, "");
@@ -130,7 +103,7 @@ export async function submitPublicRequest(
     return fail(parsed.error.issues[0]?.message ?? "Invalid request data");
   }
 
-  const verified = await findVerifiedEmployee({ employeeId: parsed.data.employee_id, idLast4: parsed.data.id_last4 });
+  const verified = await findVerifiedEmployee({ badge: parsed.data.badge, idLast4: parsed.data.id_last4 });
   if (!verified.ok) return verified;
   const employee = verified.data;
 
@@ -156,20 +129,39 @@ export async function submitPublicRequest(
     );
   }
 
+  const extendedHours = parsed.data.extended_hours;
+  if (
+    extendedHours &&
+    durationExceedsLimit(parsed.data.start_date, parsed.data.end_date, EXTENDED_HOURS_LIMIT)
+  ) {
+    return fail(extendedHoursDurationMessage());
+  }
+
   const limit = getRoleRequestLimit(employee.role);
   if (limit) {
     if (
+      !extendedHours &&
       durationExceedsLimit(parsed.data.start_date, parsed.data.end_date, limit)
     ) {
       return fail(durationLimitMessage(limit));
     }
 
     try {
-      const lastCreatedAt = await getLastLimitRequestAt(employee.id);
+      const lastCreatedAt = await getLastLimitRequestAt(
+        employee.id,
+        extendedHours ? "extended_hours" : "standard",
+      );
       if (lastCreatedAt) {
-        const nextAllowedAt = addDays(new Date(lastCreatedAt), limit.cooldownDays);
+        const nextAllowedAt = addDays(
+          new Date(lastCreatedAt),
+          extendedHours ? EXTENDED_HOURS_LIMIT.cooldownDays : limit.cooldownDays,
+        );
         if (nextAllowedAt.getTime() > Date.now()) {
-          return fail(cooldownMessage(limit, nextAllowedAt));
+          return fail(
+            extendedHours
+              ? extendedHoursCooldownMessage(nextAllowedAt)
+              : cooldownMessage(limit, nextAllowedAt),
+          );
         }
       }
     } catch {
@@ -194,7 +186,8 @@ export async function submitPublicRequest(
       start_date: parsed.data.start_date,
       end_date: parsed.data.end_date,
       duration_label: parsed.data.duration_label,
-      usage_after: parsed.data.extended_time ? EXTENDED_USAGE_AFTER : FIXED_USAGE_AFTER,
+      usage_after: FIXED_USAGE_AFTER,
+      usage_until: extendedHours ? EXTENDED_HOURS_UNTIL : null,
       purpose: parsed.data.justification,
       contact_mobile: parsed.data.contact_mobile,
       location: parsed.data.location,
@@ -206,7 +199,7 @@ export async function submitPublicRequest(
       event: "request_submitted",
       recipientIds: logisticsApproverIds,
       title: "New authorization request",
-      body: `${employee.full_name} (badge ${employee.badge}) requested a vehicle at ${parsed.data.location} from ${parsed.data.start_date} to ${parsed.data.end_date}${parsed.data.extended_time ? " with extended time (use after 21:00)" : ""}.`,
+      body: `${employee.full_name} (badge ${employee.badge}) requested a vehicle at ${parsed.data.location} from ${parsed.data.start_date} to ${parsed.data.end_date}${extendedHours ? " for extended hours (19:00–21:00)" : ""}.`,
     });
 
     revalidatePath("/", "layout");
@@ -233,6 +226,7 @@ export type BadgeRequestSummary = {
   endDate: string;
   durationLabel: string;
   usageAfter: string;
+  usageUntil: string | null;
   purpose: string | null;
   rejectionReason: string | null;
   location: string | null;
@@ -272,6 +266,7 @@ export async function lookupRequestsByBadge(
         endDate: row.end_date.slice(0, 10),
         durationLabel: row.duration_label,
         usageAfter: row.usage_after.slice(0, 5),
+        usageUntil: row.usage_until ? row.usage_until.slice(0, 5) : null,
         purpose: row.purpose,
         rejectionReason: row.rejection_reason,
         location: row.location,

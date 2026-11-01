@@ -71,6 +71,7 @@ export type Authorization = {
   end_date: string;
   duration_label: string;
   usage_after: string;
+  usage_until: string | null;
   purpose: string | null;
   rejection_reason: string | null;
   location: string | null;

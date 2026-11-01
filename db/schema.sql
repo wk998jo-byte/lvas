@@ -178,6 +178,7 @@ create table if not exists authorizations (
   end_date date not null,
   duration_label text not null,
   usage_after time not null default time '19:00',
+  usage_until time,
   purpose text,
   location text,
   justification text,
@@ -193,6 +194,10 @@ create table if not exists authorizations (
   constraint authorizations_date_range_check check (end_date >= start_date),
   constraint authorizations_approval_stage_check check (approval_stage in (1, 2)),
   constraint authorizations_usage_after_allowed_check check (usage_after in (time '19:00', time '21:00')),
+  constraint authorizations_usage_until_check check (
+    usage_until is null
+    or (usage_until = time '21:00' and usage_after = time '19:00')
+  ),
   constraint authorizations_rejection_reason_check check (
     (status <> 'rejected') or (rejection_reason is not null and length(trim(rejection_reason)) > 0)
   ),
@@ -338,6 +343,7 @@ declare
   v_cooldown integer;
   v_window integer;
   v_last timestamptz;
+  v_extended boolean;
 begin
   if new.employee_id is not null then
     select role into v_role from employees where id = new.employee_id;
@@ -349,6 +355,14 @@ begin
   v_cooldown := role_cooldown_days(v_role);
   if v_max is null or v_cooldown is null then
     return new;
+  end if;
+
+  -- Extended hours (19:00-21:00 on each date) are a separate allowance:
+  -- up to 30 days, one request per day.
+  v_extended := new.usage_until is not null;
+  if v_extended then
+    v_max := 30;
+    v_cooldown := 1;
   end if;
 
   v_window := (new.end_date - new.start_date) + 1;
@@ -364,12 +378,14 @@ begin
     from authorizations
     where employee_id = new.employee_id
       and status in ('pending', 'approved')
+      and (usage_until is not null) = v_extended
       and id is distinct from new.id;
   else
     select max(created_at) into v_last
     from authorizations
     where requester_id = new.requester_id
       and status in ('pending', 'approved')
+      and (usage_until is not null) = v_extended
       and id is distinct from new.id;
   end if;
 

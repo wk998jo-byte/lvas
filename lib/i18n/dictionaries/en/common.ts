@@ -45,17 +45,15 @@ export const commonEn = {
     dailyCadence: "once every day",
     dailyDuration: "1 day, or custom up to 1 month (30 days)",
   },
-  extendedTime: {
-    question: "Need extended time?",
-    help: "Extended time adds 2 hours: vehicle use starts at 9:00 PM instead of 7:00 PM.",
-    yesLabel: "Yes, extend 2 hours",
-    noLabel: "No",
-    chooseError: "Choose whether you need extended time",
-    standardWindow: "Vehicle use is authorized after 7:00 PM on each approved date.",
-    extendedWindow: "Extended time: vehicle use is authorized after 9:00 PM on each approved date.",
-    label: "Extended time",
-    badge: "Extended +2 h",
+  extendedHours: {
+    option: "Extended hours (7–9 PM)",
+    rangeOption: "Date range",
+    help: "Up to 1 month (30 days): on each selected date, vehicle use is allowed from 7:00 PM to 9:00 PM only. Does not count toward your regular request limit.",
+    window: "Vehicle use is allowed from 7:00 PM to 9:00 PM on each selected date.",
+    question: "Extended hours?",
+    badge: "Extended hours",
     usageAfter: "Usage after",
+    usageWindow: "Usage window",
   },
 } as const;
 

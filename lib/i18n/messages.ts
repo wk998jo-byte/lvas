@@ -7,7 +7,8 @@ import type { Locale } from "@/lib/i18n/config";
  */
 const EXACT_AR: Record<string, string> = {
   // lib/validations
-  "Choose whether you need extended time": "اختر هل تحتاج وقتًا إضافيًا",
+  "Extended hours requests can cover up to 1 month (30 days). Shorten the date range.":
+    "طلب الساعات الإضافية مدته حتى شهر (30 يومًا) فقط. يرجى تقصير نطاق التواريخ.",
   "Plate number is too long": "رقم اللوحة طويل جدًا",
   "Year must be between 1980 and 2100": "يجب أن تكون سنة الصنع بين 1980 و2100",
   "Door Number is too long": "رقم الباب طويل جدًا",
@@ -166,6 +167,18 @@ function shortDate(value: string): string {
 
 const PATTERNS_AR: Array<[RegExp, (...groups: string[]) => string]> = [
   [/^Valid only after (\d{2}:\d{2}) Saudi time\.$/, (time) => `صالح فقط بعد الساعة ${time} بتوقيت السعودية.`],
+  [
+    /^Valid only between (\d{2}:\d{2}) and (\d{2}:\d{2}) Saudi time\.$/,
+    (from, until) => `صالح فقط من الساعة ${from} إلى ${until} بتوقيت السعودية.`,
+  ],
+  [
+    /^Extended hours ended at (\d{2}:\d{2}) Saudi time\.$/,
+    (time) => `انتهت الساعات الإضافية الساعة ${time} بتوقيت السعودية.`,
+  ],
+  [
+    /^Extended hours can be requested once every day\. The next request is available on (\d{4}-\d{2}-\d{2})\.$/,
+    (date) => `يمكن طلب الساعات الإضافية مرة كل يوم. الطلب التالي متاح بتاريخ ${date}.`,
+  ],
   // lib/authorizations/limits
   [
     /^Your role allows authorizations of (.+)\. Shorten the date range\.$/,

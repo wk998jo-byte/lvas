@@ -1,3 +1,5 @@
+import { createHash, timingSafeEqual } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import { runExpiryAlarms } from "@/lib/expiry-alarms";
@@ -23,10 +25,16 @@ function authorizeCron(request: Request): boolean {
   }
 
   const header = request.headers.get("authorization");
-  if (header === `Bearer ${secret}`) return true;
+  if (header && safeEqual(header, `Bearer ${secret}`)) return true;
 
-  const url = new URL(request.url);
-  return url.searchParams.get("secret") === secret;
+  const provided = new URL(request.url).searchParams.get("secret");
+  return provided !== null && safeEqual(provided, secret);
+}
+
+function safeEqual(a: string, b: string): boolean {
+  const left = createHash("sha256").update(a).digest();
+  const right = createHash("sha256").update(b).digest();
+  return timingSafeEqual(left, right);
 }
 
 export async function GET(request: Request) {

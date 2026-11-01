@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useEffect,
   useMemo,
   useState,
   useTransition,
@@ -12,15 +11,12 @@ import {
   BadgeCheck,
   Check,
   Clock3,
-  Loader2,
-  Search,
   Send,
   ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  lookupEmployees,
   submitPublicRequest,
   verifyEmployee,
   type PublicEmployee,
@@ -28,6 +24,7 @@ import {
 import { PROJECT_LOCATIONS } from "@/lib/approvals/logistics-team";
 import {
   durationExceedsLimit,
+  EXTENDED_HOURS_LIMIT,
   getRoleRequestLimit,
   hasOneDayOrCustomDuration,
   type RoleRequestLimit,
@@ -51,6 +48,9 @@ import { cn } from "@/lib/utils";
 type PublicRequestFormProps = {
   vehicles: VehicleOption[];
 };
+
+/** Extended hours: 19:00–21:00 on each date, up to 30 days, never combined with the standard window. */
+type DurationMode = "one_day" | "custom" | "extended";
 
 /** Latest end date allowed for the category, inclusive of the start date. */
 function maxEndDate(startDate: string, limit: RoleRequestLimit | null) {
@@ -104,49 +104,21 @@ function IdentityStep({
 }) {
   const { t, locale, tm } = useI18n();
   const copy = t.public.form.identity;
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<PublicEmployee[]>([]);
-  const [selected, setSelected] = useState<PublicEmployee | null>(null);
+  const [badge, setBadge] = useState("");
   const [idLast4, setIdLast4] = useState("");
-  const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const term = query.trim();
-  // Stale matches stay in state but are hidden until the term is searchable.
-  const visibleResults = term.length >= 3 ? results : [];
-
-  useEffect(() => {
-    if (verified) return;
-    const searchTerm = query.trim();
-    if (searchTerm.length < 3) return;
-
-    let active = true;
-    const timer = setTimeout(async () => {
-      setSearching(true);
-      const result = await lookupEmployees({ query: searchTerm });
-      if (!active) return;
-      setSearching(false);
-      if (result.ok) setResults(result.data);
-    }, 300);
-
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-  }, [query, verified]);
+  const badgeValue = badge.trim();
 
   function submitVerification(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selected) {
-      setError(copy.findFirst);
-      return;
-    }
+    if (!badgeValue || idLast4.length !== 4) return;
 
     setError(null);
     startTransition(async () => {
       const result = await verifyEmployee({
-        employee_id: selected.id,
+        badge: badgeValue,
         id_last4: idLast4,
       });
 
@@ -155,6 +127,8 @@ function IdentityStep({
         return;
       }
 
+      setBadge("");
+      setIdLast4("");
       onVerified({ employee: result.data, idLast4 });
       toast.success(copy.welcome(result.data.full_name.split(" ")[0]));
     });
@@ -203,81 +177,34 @@ function IdentityStep({
       description={copy.description}
     >
       <form className="space-y-4" onSubmit={submitVerification}>
-        <div className="space-y-2">
-          <Label htmlFor="employee-search">{copy.searchLabel}</Label>
-          <div className="relative">
-            <Search className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-slate-400" />
+        <div className="grid gap-4 sm:grid-cols-[1fr_200px_auto] sm:items-end">
+          <div className="space-y-2">
+            <Label htmlFor="badge">{copy.badgeLabel}</Label>
             <Input
-              id="employee-search"
-              value={query}
+              id="badge"
+              name="badge"
+              dir="ltr"
+              value={badge}
+              maxLength={32}
               autoComplete="off"
-              placeholder={copy.searchPlaceholder}
-              className="h-11 rounded-xl ps-9"
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setSelected(null);
-              }}
+              spellCheck={false}
+              disabled={pending}
+              placeholder={copy.badgePlaceholder}
+              className="h-11 rounded-xl"
+              onChange={(e) => setBadge(e.target.value)}
             />
-            {searching && term.length >= 3 ? (
-              <Loader2 className="absolute top-1/2 end-3 size-4 -translate-y-1/2 animate-spin text-slate-400" />
-            ) : null}
           </div>
-          {term.length > 0 && term.length < 3 ? (
-            <p className="text-xs text-slate-500">
-              {copy.minChars}
-            </p>
-          ) : null}
-        </div>
-
-        {visibleResults.length > 0 ? (
-          <ul className="max-h-64 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200">
-            {visibleResults.map((employee) => {
-              const active = selected?.id === employee.id;
-              return (
-                <li key={employee.id}>
-                  <button
-                    type="button"
-                    onClick={() => setSelected(employee)}
-                    className={cn(
-                      "flex w-full items-center justify-between gap-3 px-3 py-2.5 text-start transition",
-                      active ? "bg-red-50" : "hover:bg-slate-50",
-                    )}
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium text-slate-900">
-                        {employee.full_name}
-                      </span>
-                      <span className="block truncate text-xs text-slate-500">
-                        {copy.resultBadge(employee.badge)}
-                        {employee.department ? ` · ${employee.department}` : ""}
-                      </span>
-                    </span>
-                    {active ? (
-                      <Check className="size-4 shrink-0 text-[#e30613]" />
-                    ) : null}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        ) : null}
-
-        {term.length >= 3 && !searching && visibleResults.length === 0 ? (
-          <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-            {copy.noMatches}
-          </p>
-        ) : null}
-
-        <div className="grid gap-4 sm:grid-cols-[200px_auto] sm:items-end">
           <div className="space-y-2">
             <Label htmlFor="id_last4">{copy.idLast4Label}</Label>
             <Input
               id="id_last4"
+              name="id_last4"
               dir="ltr"
               inputMode="numeric"
               maxLength={4}
               value={idLast4}
-              disabled={!selected || pending}
+              autoComplete="off"
+              disabled={pending}
               placeholder="••••"
               className="h-11 rounded-xl tracking-[0.4em]"
               onChange={(e) =>
@@ -288,7 +215,7 @@ function IdentityStep({
           <Button
             type="submit"
             className="h-11 rounded-full"
-            disabled={!selected || idLast4.length !== 4 || pending}
+            disabled={!badgeValue || idLast4.length !== 4 || pending}
           >
             <ShieldCheck className="size-4" />
             {pending ? copy.verifying : copy.verify}
@@ -326,8 +253,8 @@ function DetailsStep({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [vehicle, setVehicle] = useState<VehicleOption | null>(null);
-  const [durationMode, setDurationMode] = useState<"one_day" | "custom">(
-    "one_day",
+  const [durationMode, setDurationMode] = useState<DurationMode>(
+    useDurationPresets ? "one_day" : "custom",
   );
   const [startDate, setStartDate] = useState(saudiTodayIsoDate);
   const [endDate, setEndDate] = useState(saudiTodayIsoDate);
@@ -338,15 +265,27 @@ function DetailsStep({
   const [mobile, setMobile] = useState("");
   const [location, setLocation] = useState("");
   const [justification, setJustification] = useState("");
-  const [extendedTime, setExtendedTime] = useState<boolean | null>(null);
+
+  const extendedHours = durationMode === "extended";
+  const singleDay = durationMode === "one_day";
+  const windowLimit = extendedHours ? EXTENDED_HOURS_LIMIT : limit;
+  const modeOptions: Array<{ id: DurationMode; label: string }> = [
+    ...(useDurationPresets
+      ? [
+          { id: "one_day" as const, label: copy.oneDay },
+          { id: "custom" as const, label: copy.custom },
+        ]
+      : [{ id: "custom" as const, label: t.common.extendedHours.rangeOption }]),
+    { id: "extended", label: t.common.extendedHours.option },
+  ];
 
   const computedDuration = useMemo(
     () => formatDurationLabel(startDate, endDate),
     [startDate, endDate],
   );
   const selectedDays = inclusiveDayCount(startDate, endDate);
-  const overLimit = limit
-    ? durationExceedsLimit(startDate, endDate, limit)
+  const overLimit = windowLimit
+    ? durationExceedsLimit(startDate, endDate, windowLimit)
     : false;
 
   function applyOneDay(nextStart = saudiTodayIsoDate()) {
@@ -357,8 +296,17 @@ function DetailsStep({
     setDurationLabel(formatDurationLabel(nextStart, nextStart));
   }
 
-  function applyCustom() {
-    setDurationMode("custom");
+  function selectMode(mode: DurationMode) {
+    if (mode === "one_day") {
+      applyOneDay(startDate);
+      return;
+    }
+    setDurationMode(mode);
+    const capped = maxEndDate(startDate, mode === "extended" ? EXTENDED_HOURS_LIMIT : limit);
+    if (capped && endDate > capped) {
+      setEndDate(capped);
+      syncDuration(startDate, capped);
+    }
   }
 
   function syncDuration(nextStart: string, nextEnd: string) {
@@ -373,19 +321,18 @@ function DetailsStep({
       setError(copy.selectVehicle);
       return;
     }
-    if (limit && overLimit) {
-      setError(copy.durationLimit(limitText?.duration ?? limit.durationLabel));
+    if (overLimit) {
+      setError(
+        extendedHours || !limit
+          ? copy.overMonth(selectedDays)
+          : copy.durationLimit(limitText?.duration ?? limit.durationLabel),
+      );
       return;
     }
-    if (extendedTime === null) {
-      setError(t.common.extendedTime.chooseError);
-      return;
-    }
-
     setError(null);
     startTransition(async () => {
       const result = await submitPublicRequest({
-        employee_id: employee.id,
+        badge: employee.badge,
         id_last4: identity.idLast4,
         vehicle_id: vehicle.id,
         start_date: startDate,
@@ -395,7 +342,7 @@ function DetailsStep({
         location,
         justification,
         contact_mobile: mobile,
-        extended_time: extendedTime,
+        extended_hours: extendedHours,
       });
 
       if (!result.ok) {
@@ -430,105 +377,41 @@ function DetailsStep({
           </p>
         </div>
 
-        {useDurationPresets ? (
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <Label>{copy.duration}</Label>
-              <div className="flex flex-wrap gap-2">
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label>{copy.duration}</Label>
+            <div
+              className="flex flex-wrap gap-2"
+              role="radiogroup"
+              aria-label={copy.duration}
+            >
+              {modeOptions.map((option) => (
                 <button
+                  key={option.id}
                   type="button"
+                  role="radio"
+                  aria-checked={durationMode === option.id}
                   disabled={pending}
-                  onClick={() => applyOneDay(startDate)}
+                  onClick={() => selectMode(option.id)}
                   className={cn(
-                    "rounded-full border px-3 py-1.5 text-sm font-medium transition",
-                    durationMode === "one_day"
+                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition",
+                    durationMode === option.id
                       ? "border-[#e30613]/30 bg-[#e30613] text-white"
                       : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
                   )}
                 >
-                  {copy.oneDay}
+                  {option.id === "extended" ? <Clock3 className="size-3.5" /> : null}
+                  {option.label}
                 </button>
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={applyCustom}
-                  className={cn(
-                    "rounded-full border px-3 py-1.5 text-sm font-medium transition",
-                    durationMode === "custom"
-                      ? "border-[#e30613]/30 bg-[#e30613] text-white"
-                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
-                  )}
-                >
-                  {copy.custom}
-                </button>
-              </div>
+              ))}
+            </div>
+            {extendedHours ? (
+              <p className="text-xs text-slate-500">{t.common.extendedHours.help}</p>
+            ) : useDurationPresets ? (
               <p className="text-xs text-slate-500">{copy.presetHelp}</p>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="start_date">{copy.startDate}</Label>
-                <Input
-                  id="start_date"
-                  type="date"
-                  dir="ltr"
-                  required
-                  value={startDate}
-                  min={saudiTodayIsoDate()}
-                  disabled={pending}
-                  className="h-11 rounded-xl"
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    if (durationMode === "one_day") {
-                      applyOneDay(next);
-                      return;
-                    }
-                    setStartDate(next);
-                    const capped = maxEndDate(next, limit);
-                    const nextEnd =
-                      capped && endDate > capped
-                        ? capped
-                        : endDate < next
-                          ? next
-                          : endDate;
-                    setEndDate(nextEnd);
-                    syncDuration(next, nextEnd);
-                  }}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="end_date">{copy.endDate}</Label>
-                <Input
-                  id="end_date"
-                  type="date"
-                  dir="ltr"
-                  required
-                  value={endDate}
-                  min={startDate}
-                  max={maxEndDate(startDate, limit)}
-                  disabled={pending || durationMode === "one_day"}
-                  className="h-11 rounded-xl"
-                  onChange={(e) => {
-                    setEndDate(e.target.value);
-                    syncDuration(startDate, e.target.value);
-                  }}
-                />
-                <p
-                  className={cn(
-                    "text-xs",
-                    overLimit ? "text-rose-600" : "text-slate-500",
-                  )}
-                >
-                  {durationMode === "one_day"
-                    ? copy.singleDay
-                    : overLimit
-                      ? copy.overMonth(selectedDays)
-                      : copy.selectedDays(selectedDays)}
-                </p>
-              </div>
-            </div>
+            ) : null}
           </div>
-        ) : (
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="start_date">{copy.startDate}</Label>
@@ -542,8 +425,21 @@ function DetailsStep({
                 disabled={pending}
                 className="h-11 rounded-xl"
                 onChange={(e) => {
-                  setStartDate(e.target.value);
-                  syncDuration(e.target.value, endDate);
+                  const next = e.target.value;
+                  if (durationMode === "one_day") {
+                    applyOneDay(next);
+                    return;
+                  }
+                  setStartDate(next);
+                  const capped = maxEndDate(next, windowLimit);
+                  const nextEnd =
+                    capped && endDate > capped
+                      ? capped
+                      : endDate < next
+                        ? next
+                        : endDate;
+                  setEndDate(nextEnd);
+                  syncDuration(next, nextEnd);
                 }}
               />
             </div>
@@ -556,31 +452,39 @@ function DetailsStep({
                 required
                 value={endDate}
                 min={startDate}
-                max={maxEndDate(startDate, limit)}
-                disabled={pending}
+                max={maxEndDate(startDate, windowLimit)}
+                disabled={pending || singleDay}
                 className="h-11 rounded-xl"
                 onChange={(e) => {
                   setEndDate(e.target.value);
                   syncDuration(startDate, e.target.value);
                 }}
               />
-              {limit ? (
-                <p
-                  className={cn(
-                    "text-xs",
-                    overLimit ? "text-rose-600" : "text-slate-500",
-                  )}
-                >
-                  {overLimit
-                    ? copy.categoryOver(limitText?.duration ?? limit.durationLabel, selectedDays)
-                    : copy.maxWindow(limitText?.duration ?? limit.durationLabel)}
-                </p>
-              ) : null}
+              <DurationHint
+                text={
+                  extendedHours
+                    ? overLimit
+                      ? copy.overMonth(selectedDays)
+                      : `${t.common.extendedHours.window} ${copy.selectedDays(selectedDays)}`
+                    : durationMode === "one_day"
+                      ? copy.singleDay
+                      : useDurationPresets
+                        ? overLimit
+                          ? copy.overMonth(selectedDays)
+                          : copy.selectedDays(selectedDays)
+                        : limit
+                          ? overLimit
+                            ? copy.categoryOver(limitText?.duration ?? limit.durationLabel, selectedDays)
+                            : copy.maxWindow(limitText?.duration ?? limit.durationLabel)
+                          : null
+                }
+                warning={overLimit}
+              />
             </div>
           </div>
-        )}
+        </div>
 
-        {!useDurationPresets ? (
+        {!useDurationPresets && !extendedHours ? (
           <div className="space-y-2">
             <Label htmlFor="duration_label">{copy.duration}</Label>
             <Input
@@ -599,12 +503,6 @@ function DetailsStep({
         ) : (
           <input type="hidden" name="duration_label" value={durationLabel} />
         )}
-
-        <ExtendedTimeField
-          value={extendedTime}
-          onChange={setExtendedTime}
-          disabled={pending}
-        />
 
         <div className="space-y-2">
           <Label htmlFor="contact_mobile">{copy.mobile}</Label>
@@ -680,56 +578,18 @@ function DetailsStep({
   );
 }
 
-function ExtendedTimeField({
-  value,
-  onChange,
-  disabled,
+function DurationHint({
+  text,
+  warning,
 }: {
-  value: boolean | null;
-  onChange: (value: boolean) => void;
-  disabled: boolean;
+  text: string | null;
+  warning: boolean;
 }) {
-  const { t } = useI18n();
-  const copy = t.common.extendedTime;
-  const options = [
-    { value: false, label: copy.noLabel },
-    { value: true, label: copy.yesLabel },
-  ];
-
+  if (!text) return null;
   return (
-    <fieldset className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-      <legend className="sr-only">{copy.question}</legend>
-      <p className="flex items-center gap-1.5 text-sm font-medium text-slate-800" aria-hidden>
-        <Clock3 className="size-3.5" />
-        {copy.question}
-      </p>
-      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={copy.question}>
-        {options.map((option) => (
-          <button
-            key={String(option.value)}
-            type="button"
-            role="radio"
-            aria-checked={value === option.value}
-            disabled={disabled}
-            onClick={() => onChange(option.value)}
-            className={cn(
-              "rounded-full border px-3 py-1.5 text-sm font-medium transition",
-              value === option.value
-                ? "border-[#e30613]/30 bg-[#e30613] text-white"
-                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
-            )}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-      <p className="text-xs text-slate-500">{copy.help}</p>
-      {value !== null ? (
-        <p className="text-sm text-slate-600">
-          {value ? copy.extendedWindow : copy.standardWindow}
-        </p>
-      ) : null}
-    </fieldset>
+    <p className={cn("text-xs", warning ? "text-rose-600" : "text-slate-500")}>
+      {text}
+    </p>
   );
 }
 

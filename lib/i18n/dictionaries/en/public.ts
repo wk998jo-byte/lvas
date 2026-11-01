@@ -32,7 +32,6 @@
     detailsTitle: "Request details",
     detailsLocked: "Unlocks once your identity is confirmed.",
     identity: {
-      findFirst: "Find and select your name first.",
       welcome: (firstName: string) => `Welcome, ${firstName}`,
       confirmedTitle: "Identity confirmed",
       confirmedDescription: (name: string, badge: string) => `${name} · badge ${badge}`,
@@ -40,12 +39,9 @@
       notYou: "Not you?",
       title: "Confirm who you are",
       description:
-        "Search the employee directory, then verify with the last 4 digits of your national ID.",
-      searchLabel: "Badge number or name",
-      searchPlaceholder: "e.g. 20451 or Mohammed Ali",
-      minChars: "Type at least 3 characters.",
-      resultBadge: (badge: string) => `Badge ${badge}`,
-      noMatches: "No employee matches that search. Check your badge number.",
+        "Enter your full badge number and the last 4 digits of your national ID.",
+      badgeLabel: "Badge number",
+      badgePlaceholder: "e.g. 20451",
       idLast4Label: "Last 4 digits of national ID",
       verifying: "Verifying…",
       verify: "Verify identity",

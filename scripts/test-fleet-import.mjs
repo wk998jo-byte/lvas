@@ -150,7 +150,7 @@ try {
     await client.query("insert into employees(id,badge,full_name,national_id,mobile,role) values($1,$2,'Synthetic Fleet Driver','1234567890','0500000000','other_employee')", [id, badge]);
   }
   const receipt = await load("actions/public-requests.ts").submitPublicRequest({
-    employee_id: employee, id_last4: "7890", vehicle_id: uuidA,
+    badge: "FLEET-NULL", id_last4: "7890", vehicle_id: uuidA,
     start_date: "2026-10-10", end_date: "2026-10-12", duration_label: "Custom (3 days)",
     usage_after: "19:00", contact_mobile: "0500000000", purpose: "Disposable null plate test",
     location: "Jafurah", justification: "Synthetic test only",

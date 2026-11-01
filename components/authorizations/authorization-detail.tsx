@@ -36,7 +36,7 @@ import {
   decisionActorLabel,
   formatDecisionTime,
 } from "@/lib/approvals/presentation";
-import { isExtendedUsageAfter } from "@/lib/business-date";
+import { formatUsageWindow, isExtendedHours } from "@/lib/business-date";
 import { DEFAULT_LOCALE, intlLocale, type Locale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { plateFieldValue, plateLabel } from "@/components/vehicles/plate-label";
@@ -69,10 +69,6 @@ export type AuthorizationDetailData = Authorization & {
 function one<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
   return Array.isArray(value) ? (value[0] ?? null) : value;
-}
-
-function formatUsageAfter(value: string): string {
-  return typeof value === "string" ? value.slice(0, 5) : value;
 }
 
 function formatDate(value: string, locale: Locale) {
@@ -193,8 +189,8 @@ export function AuthorizationDetailView({
   const approver = one(request.approver);
   const firstApprover = one(request.first_approver);
   const rejectedBy = one(request.rejected_by);
-  const usage = formatUsageAfter(request.usage_after);
-  const extended = isExtendedUsageAfter(request.usage_after);
+  const usage = formatUsageWindow(request.usage_after, request.usage_until);
+  const extended = isExtendedHours(request.usage_until);
   const plate = vehicle
     ? `${vehicle.door_number ? `${t.approvals.table.door(vehicle.door_number)} · ` : ""}${plateLabel(vehicle)}`
     : copy.requestFallback;
@@ -265,14 +261,18 @@ export function AuthorizationDetailView({
         />
         <InfoTile
           icon={Hourglass}
-          label={t.common.extendedTime.question}
+          label={t.common.extendedHours.question}
           value={extended ? t.common.yes : t.common.no}
-          badge={extended ? t.common.extendedTime.badge : undefined}
+          badge={extended ? t.common.extendedHours.badge : undefined}
           accent={extended}
         />
         <InfoTile
           icon={Clock3}
-          label={t.common.extendedTime.usageAfter}
+          label={
+            extended
+              ? t.common.extendedHours.usageWindow
+              : t.common.extendedHours.usageAfter
+          }
           value={usage}
           accent
         />

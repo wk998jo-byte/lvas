@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { approvalStatusLabel } from "@/lib/approvals/presentation";
 import { effectiveAuthorizationStatus } from "@/lib/authorizations/effective-status";
-import { isExtendedUsageAfter } from "@/lib/business-date";
+import { formatUsageWindow, isExtendedHours } from "@/lib/business-date";
 import { useI18n } from "@/lib/i18n/client";
 import { plateLabel } from "@/components/vehicles/plate-label";
 
@@ -163,10 +163,13 @@ export function BadgeStatusForm() {
                         {copy.ref} {request.reference}
                       </p>
                       <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
-                        {t.common.extendedTime.usageAfter} {request.usageAfter}
-                        {isExtendedUsageAfter(request.usageAfter) ? (
+                        {request.usageUntil
+                          ? t.common.extendedHours.usageWindow
+                          : t.common.extendedHours.usageAfter}{" "}
+                        {formatUsageWindow(request.usageAfter, request.usageUntil)}
+                        {isExtendedHours(request.usageUntil) ? (
                           <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-                            {t.common.extendedTime.badge}
+                            {t.common.extendedHours.badge}
                           </span>
                         ) : null}
                       </p>

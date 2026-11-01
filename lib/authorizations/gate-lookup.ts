@@ -13,7 +13,8 @@ export async function getGateVerification(token: string) {
   try {
     const row = await queryOne<GateAuthorizationRow>(`
       select a.id, a.status, a.start_date::text as start_date,
-        a.end_date::text as end_date, a.usage_after::text as usage_after, a.location,
+        a.end_date::text as end_date, a.usage_after::text as usage_after,
+        a.usage_until::text as usage_until, a.location,
         case when v.id is null then null else jsonb_build_object(
           'door_number', v.door_number, 'plate_number', v.plate_number, 'make', v.make, 'model', v.model
         ) end as vehicle,

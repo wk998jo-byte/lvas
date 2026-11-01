@@ -150,7 +150,7 @@ assert.equal(new Set(team.PROJECT_LOCATIONS).size, 21);
 const validation = load("lib/validations/index.ts");
 const requestInput = {
   vehicle_id: "00000000-0000-4000-8000-000000000001",
-  employee_id: "00000000-0000-4000-8000-000000000002",
+  badge: "0002",
   id_last4: "1234", contact_mobile: "0500000000",
   purpose: "",
   start_date: "2030-01-01", end_date: "2030-01-02",

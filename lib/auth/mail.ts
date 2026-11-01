@@ -36,6 +36,9 @@ export async function sendSmtpEmail(
     host,
     port,
     secure: port === 465,
+    // Never fall back to plaintext SMTP when STARTTLS is unavailable or stripped.
+    requireTLS: port !== 465,
+    tls: { minVersion: "TLSv1.2" },
     auth: user ? { user, pass: pass ?? "" } : undefined,
     ...(options?.boundedTimeouts ? {
       connectionTimeout: 5_000,

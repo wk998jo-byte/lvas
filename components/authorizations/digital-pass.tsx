@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/card";
 import type { AuthorizationDetailData } from "@/components/authorizations/authorization-detail";
 import { isEffectivelyApproved } from "@/lib/authorizations/effective-status";
-import { isExtendedUsageAfter } from "@/lib/business-date";
+import { formatUsageWindow, isExtendedHours } from "@/lib/business-date";
 import { useI18n } from "@/lib/i18n/client";
 import { plateLabel } from "@/components/vehicles/plate-label";
 
@@ -139,14 +139,14 @@ export function DigitalAuthorizationPass({
                 </div>
                 <div>
                   <p className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">
-                    {t.common.extendedTime.usageAfter}
+                    {request.usage_until
+                      ? t.common.extendedHours.usageWindow
+                      : t.common.extendedHours.usageAfter}
                   </p>
                   <p className="font-semibold">
-                    {typeof request.usage_after === "string"
-                      ? request.usage_after.slice(0, 5)
-                      : request.usage_after}
-                    {isExtendedUsageAfter(request.usage_after)
-                      ? ` · ${t.common.extendedTime.badge}`
+                    {formatUsageWindow(request.usage_after, request.usage_until)}
+                    {isExtendedHours(request.usage_until)
+                      ? ` · ${t.common.extendedHours.badge}`
                       : null}
                   </p>
                 </div>

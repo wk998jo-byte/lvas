@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 import type { GateVerificationResultData } from "@/lib/authorizations/gate-verification";
-import { isExtendedUsageAfter } from "@/lib/business-date";
+import { formatUsageWindow, isExtendedHours } from "@/lib/business-date";
 import { useI18n } from "@/lib/i18n/client";
 import { plateLabel } from "@/components/vehicles/plate-label";
 
@@ -143,10 +143,14 @@ export function GateVerificationResult({
               <ComparisonRow label={copy.validFrom} value={details.startDate} />
               <ComparisonRow label={copy.validThrough} value={details.endDate} />
               <ComparisonRow
-                label={t.common.extendedTime.usageAfter}
-                value={`${details.usageAfter} ${t.common.saudiTime}${
-                  isExtendedUsageAfter(details.usageAfter)
-                    ? ` · ${t.common.extendedTime.badge}`
+                label={
+                  details.usageUntil
+                    ? t.common.extendedHours.usageWindow
+                    : t.common.extendedHours.usageAfter
+                }
+                value={`${formatUsageWindow(details.usageAfter, details.usageUntil)} ${t.common.saudiTime}${
+                  isExtendedHours(details.usageUntil)
+                    ? ` · ${t.common.extendedHours.badge}`
                     : ""
                 }`}
               />

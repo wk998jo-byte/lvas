@@ -197,13 +197,15 @@ const adapter = {
       authorizations.push({
         id,
         approver_id: params[2],
-        location: params[9],
+        location: params[10],
         status: "pending",
         approval_stage: 1,
         vehicle_id: params[0],
         employee_id: params[1],
         start_date: params[3],
         end_date: params[4],
+        usage_after: params[6],
+        usage_until: params[7],
       });
       return [{ id, public_token: `token-${id}` }];
     }
@@ -329,8 +331,6 @@ const employee = {
   role: "other_employee",
   national_id: "1234567890",
 };
-const originalGetEmployee = queries.getEmployeeForVerify;
-queries.getEmployeeForVerify = async () => employee;
 queries.getEmployeeByBadge = async () => employee;
 queries.getVehicleById = async () => ({
   id: "22222222-2222-4222-8222-222222222222",
@@ -340,11 +340,9 @@ queries.getVehicleById = async () => ({
 queries.getLastLimitRequestAt = async () => null;
 queries.insertNotification = async () => {};
 queries.listAuthorizationsByEmployeeId = async () => [];
-void originalGetEmployee;
-
 function request(location) {
   return {
-    employee_id: employee.id,
+    badge: employee.badge,
     id_last4: "7890",
     vehicle_id: "22222222-2222-4222-8222-222222222222",
     start_date: "2030-01-10",
@@ -437,5 +435,46 @@ const mapped = await queries.getEligibleFinalApproverIdForLocation("Rigmove");
 assert.equal(mapped, abdullah);
 assert.equal(await queries.getEligibleFinalApproverIdForLocation("Dhahran Base"), muteb);
 assert.equal(await queries.getEligibleFinalApproverIdForLocation("Unknown"), null);
+
+resetData();
+const limitKinds = [];
+queries.getLastLimitRequestAt = async (_employeeId, kind) => {
+  limitKinds.push(kind);
+  return null;
+};
+const extendedTooLong = await publicActions.submitPublicRequest({
+  ...request("Dhahran Base"),
+  end_date: "2030-02-09",
+  extended_hours: true,
+});
+assert.equal(extendedTooLong.ok, false, "extended hours cannot span more than 30 days");
+assert.equal(
+  extendedTooLong.error,
+  "Extended hours requests can cover up to 1 month (30 days). Shorten the date range.",
+);
+assert.equal(authorizations.length, 0);
+const extendedMonth = await publicActions.submitPublicRequest({
+  ...request("Dhahran Base"),
+  end_date: "2030-02-08",
+  extended_hours: true,
+});
+assert.equal(extendedMonth.ok, true, "30-day extended hours are allowed");
+assert.equal(authorizations.at(-1).end_date, "2030-02-08");
+assert.equal(authorizations.at(-1).usage_after, "19:00:00");
+assert.equal(authorizations.at(-1).usage_until, "21:00:00");
+const standard = await publicActions.submitPublicRequest(request("Dhahran Base"));
+assert.equal(standard.ok, true);
+assert.equal(authorizations.at(-1).usage_until, null);
+assert.deepEqual(limitKinds, ["extended_hours", "standard"], "each request type checks its own allowance");
+queries.getLastLimitRequestAt = async (_employeeId, kind) =>
+  kind === "extended_hours" ? new Date().toISOString() : null;
+const secondExtended = await publicActions.submitPublicRequest({
+  ...request("Dhahran Base"),
+  end_date: "2030-01-10",
+  extended_hours: true,
+});
+assert.equal(secondExtended.ok, false);
+assert.match(secondExtended.error, /^Extended hours can be requested once every day\./);
+assert.equal((await publicActions.submitPublicRequest(request("Dhahran Base"))).ok, true, "standard allowance is separate");
 
 console.log("final-approver-routing: PASS");

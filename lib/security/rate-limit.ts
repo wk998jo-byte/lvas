@@ -17,7 +17,6 @@ export const RATE_LIMIT_POLICIES = {
   identity: { windowMs: 15 * MINUTE, subjectFailures: 5, combinationFailures: 5 },
   forgotPassword: { windowMs: 60 * MINUTE, client: 20, fallback: 100, subjectRequests: 5 },
   resetPassword: { windowMs: 15 * MINUTE, client: 30, fallback: 300 },
-  employeeSearch: { windowMs: MINUTE, client: 60, fallback: 600 },
   tokenTracking: { windowMs: 15 * MINUTE, client: 60, fallback: 600 },
 } as const;
 

@@ -36,6 +36,17 @@ export const ROLE_REQUEST_LIMITS: Record<UserRole, RoleRequestLimit | null> = {
   admin: null,
 };
 
+/**
+ * Extended hours (19:00–21:00 on each date) are a separate allowance for every
+ * role: up to 30 days, once a day, not counted toward the standard cadence.
+ */
+export const EXTENDED_HOURS_LIMIT: RoleRequestLimit = {
+  maxDurationDays: 30,
+  cooldownDays: 1,
+  cadenceLabel: "once every day",
+  durationLabel: "up to 1 month (30 days)",
+};
+
 /** Roles that pick a 1-day default with an optional custom window up to max. */
 export function hasOneDayOrCustomDuration(role: UserRole): boolean {
   return role === "supervisor_requester" || role === "other_employee";
@@ -75,4 +86,12 @@ export function cooldownMessage(
   nextAllowedAt: Date,
 ): string {
   return `Your role can submit a request ${limit.cadenceLabel}. The next request is available on ${formatIsoDate(nextAllowedAt)}.`;
+}
+
+export function extendedHoursDurationMessage(): string {
+  return "Extended hours requests can cover up to 1 month (30 days). Shorten the date range.";
+}
+
+export function extendedHoursCooldownMessage(nextAllowedAt: Date): string {
+  return `Extended hours can be requested once every day. The next request is available on ${formatIsoDate(nextAllowedAt)}.`;
 }

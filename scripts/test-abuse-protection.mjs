@@ -60,10 +60,8 @@ let tokenUsed = false;
 const queryStubs = {
   getProfileByEmail: async (email) => email.trim().toLowerCase() === "known@example.invalid"
     ? { id: "synthetic-account", email, password_hash: passwordHash, is_active: true, role: "admin" } : null,
-  getEmployeeForVerify: async (id) => id === employee.id ? employee : null,
   getEmployeeByBadge: async (badge) => badge === employee.badge ? employee : null,
   listAuthorizationsByEmployeeId: async () => [],
-  lookupPublicEmployees: async () => [employee],
   replacePasswordResetToken: async () => { tokensWritten++; },
   resetPasswordWithTokenHash: async (input) => {
     assert.ok(/^scrypt:[0-9a-f]{32}:[0-9a-f]{128}$/.test(input.passwordHash));
@@ -187,19 +185,19 @@ try {
 
   // Verification and status lookup share one failure budget, even across IPs.
   await clear();
-  assert.equal((await publicActions.verifyEmployee({ employee_id: employee.id, id_last4: "9876" })).ok, true);
+  assert.equal((await publicActions.verifyEmployee({ badge: employee.badge, id_last4: "9876" })).ok, true);
   assert.equal((await publicActions.lookupRequestsByBadge({ badge: employee.badge, id_last4: "9876" })).ok, true);
   for (let i = 0; i < 5; i++) {
     address = `198.51.100.${i + 1}`;
     const result = i % 2
       ? await publicActions.lookupRequestsByBadge({ badge: employee.badge, id_last4: "1111" })
-      : await publicActions.verifyEmployee({ employee_id: employee.id, id_last4: "1111" });
+      : await publicActions.verifyEmployee({ badge: employee.badge, id_last4: "1111" });
     assert.equal(result.error, "Employee details and ID digits do not match.");
   }
-  assert.equal((await publicActions.verifyEmployee({ employee_id: employee.id, id_last4: "1111" })).error, limiter.TOO_MANY_ATTEMPTS);
+  assert.equal((await publicActions.verifyEmployee({ badge: employee.badge, id_last4: "1111" })).error, limiter.TOO_MANY_ATTEMPTS);
   assert.equal((await publicActions.lookupRequestsByBadge({ badge: employee.badge, id_last4: "1111" })).error, limiter.TOO_MANY_ATTEMPTS);
   const submission = {
-    employee_id: employee.id, id_last4: "1111",
+    badge: employee.badge, id_last4: "1111",
     vehicle_id: "22222222-2222-4222-8222-222222222222",
     start_date: "2099-01-01", end_date: "2099-01-01", duration_label: "1 day",
     purpose: "Synthetic test",
@@ -212,6 +210,9 @@ try {
   const missing = await publicActions.lookupRequestsByBadge({ badge: "999999", id_last4: "1111" });
   const wrong = await publicActions.lookupRequestsByBadge({ badge: employee.badge, id_last4: "1111" });
   assert.equal(missing.error, wrong.error);
+  const missingVerify = await publicActions.verifyEmployee({ badge: "999999", id_last4: "1111" });
+  assert.equal(missingVerify.error, wrong.error);
+  assert.equal("lookupEmployees" in publicActions, false);
 
   // Forgot password: existing, missing, throttled and unavailable are identical.
   await clear();

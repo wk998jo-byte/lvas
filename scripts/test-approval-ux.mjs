@@ -134,7 +134,7 @@ function employeeStatus(row) {
   badgeSummaries = [{
     token: row.public_token, status: row.status, approvalStage: row.approval_stage,
     reference: row.id.slice(0, 8), startDate: row.start_date, endDate: row.end_date,
-    durationLabel: "One day", location: row.location, plate: "Synthetic plate",
+    durationLabel: "One day", usageAfter: "19:00", usageUntil: null, location: row.location, plate: "Synthetic plate",
     rejectionReason: row.rejection_reason,
   }];
   cache.delete("components/public/badge-status-form.tsx");
@@ -164,7 +164,7 @@ try {
     create unique index approval_ux_notification_dedupe on notifications(dedupe_key) where dedupe_key is not null;
     create temp table authorizations (
       id uuid,vehicle_id uuid,requester_id uuid,employee_id uuid,public_token uuid,contact_mobile text,
-      approver_id uuid,status text,start_date date,end_date date,duration_label text,usage_after time,
+      approver_id uuid,status text,start_date date,end_date date,duration_label text,usage_after time,usage_until time,
       purpose text,rejection_reason text,location text,justification text,approval_stage integer,
       first_approver_id uuid,first_approved_at timestamptz,approved_at timestamptz,rejected_at timestamptz,
       rejected_by_id uuid,created_at timestamptz,updated_at timestamptz);

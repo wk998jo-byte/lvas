@@ -100,7 +100,7 @@ try {
     create temp table profiles (id uuid, full_name text, email text) on commit drop;
     create temp table authorizations (
       id uuid, vehicle_id uuid, employee_id uuid, requester_id uuid, public_token uuid,
-      status text, start_date date, end_date date, usage_after time, location text,
+      status text, start_date date, end_date date, usage_after time, usage_until time, location text,
       contact_mobile text, approver_id uuid, duration_label text, purpose text,
       rejection_reason text, justification text, approval_stage integer,
       first_approver_id uuid, first_approved_at timestamptz, approved_at timestamptz,
@@ -134,7 +134,8 @@ try {
   assert.doesNotMatch(JSON.stringify(valid) + html, /PRIVATE|private@example|11111111-1111|22222222-2222/);
   assert.doesNotMatch(JSON.stringify(valid) + html, /Synthetic Account|55555555-5555|77777777-7777/);
   assert.equal(valid.details.doorNumber, "006-01-736");
-  assert.deepEqual(Object.keys(valid.details).sort(), ["badge", "doorNumber", "driver", "endDate", "location", "plate", "reference", "startDate", "usageAfter", "vehicle"].sort());
+  assert.deepEqual(Object.keys(valid.details).sort(), ["badge", "doorNumber", "driver", "endDate", "location", "plate", "reference", "startDate", "usageAfter", "usageUntil", "vehicle"].sort());
+  assert.equal(valid.details.usageUntil, null);
   assert.ok(lookupQueries.every(({ sql, params }) => /^select/i.test(sql.trim()) && params[0] === token && /a.public_token = \$1/.test(sql)));
   assert.ok(lookupQueries.every(({ sql }) => !/national_id|contact_mobile|justification|rejection_reason|email/.test(sql)));
 
@@ -190,13 +191,36 @@ try {
   assert.equal((await verify()).details.badge, null);
   await client.query("update pg_temp.authorizations set employee_id=$1, requester_id=null, usage_after='18:00'", [employeeId]);
   assert.equal((await verify()).state, "invalid");
-  await client.query("update pg_temp.authorizations set usage_after='21:00'");
-  assert.equal((await verify()).state, "not_yet_valid", "extended-time pass is not valid at 19:00");
-  assert.match((await verify()).reason, /after 21:00/);
-  now = "2026-10-06T18:00:00.000Z";
+  await client.query("update pg_temp.authorizations set usage_after='19:00', usage_until='21:00'");
+  now = "2026-10-06T15:59:59.999Z";
+  const early = await verify();
+  assert.equal(early.state, "not_yet_valid", `extended-hours pass is not valid before 19:00: ${early.reason}`);
+  assert.match(early.reason, /between 19:00 and 21:00/);
+  now = "2026-10-06T16:00:00.000Z";
   const extended = await verify();
-  assert.equal(extended.state, "valid", "extended-time pass is valid from 21:00 Saudi time");
-  assert.equal(extended.details.usageAfter, "21:00");
+  assert.equal(extended.state, "valid", "extended-hours pass is valid from 19:00 Saudi time");
+  assert.equal(extended.details.usageAfter, "19:00");
+  assert.equal(extended.details.usageUntil, "21:00");
+  now = "2026-10-06T17:59:59.999Z";
+  assert.equal((await verify()).state, "valid", "final second before 21:00 is still valid");
+  now = "2026-10-06T18:00:00.000Z";
+  const ended = await verify();
+  assert.equal(ended.state, "invalid", "extended-hours pass ends at 21:00 Saudi time");
+  assert.match(ended.reason, /ended at 21:00/);
+  assert.equal(ended.details, undefined);
+  now = "2026-10-06T16:00:00.000Z";
+  await client.query("update pg_temp.authorizations set usage_until='22:00'");
+  assert.equal((await verify()).state, "invalid", "unknown end clock is denied");
+  await client.query("update pg_temp.authorizations set usage_until='21:00', start_date='2026-10-01', end_date='2026-10-30'");
+  assert.equal((await verify()).state, "valid", "month-long extended hours are valid 19:00–21:00 on each date");
+  now = "2026-10-06T18:00:00.000Z";
+  assert.equal((await verify()).state, "invalid", "month-long extended hours still end at 21:00 each day");
+  now = "2026-10-06T16:00:00.000Z";
+  await client.query("update pg_temp.authorizations set usage_until='21:00', start_date='2026-10-06', end_date='2026-10-06', usage_after='21:00'");
+  assert.equal((await verify()).state, "invalid", "extended hours must start at 19:00");
+  await client.query("update pg_temp.authorizations set usage_until=null, usage_after='21:00'");
+  now = "2026-10-06T18:00:00.000Z";
+  assert.equal((await verify()).state, "valid", "legacy 21:00 rows keep their stored rule");
   now = "2026-10-06T16:00:00.000Z";
   await client.query("update pg_temp.authorizations set usage_after='19:00'");
   assert.equal(invalidLimitCalls, 0, "all known passes bypass invalid-token throttling");

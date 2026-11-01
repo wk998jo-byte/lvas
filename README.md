@@ -31,7 +31,7 @@ The live databases already contain business data. Do **not** re-import the backu
 4. Do **not** run `npm run db:import`.
 5. Do **not** run `npm run db:bootstrap-admin`.
 
-Before deploying the extended-time request option, apply `db/migrations/20261028_extended_usage_time.sql` to the existing database. Without it, any request that answers "Yes" to extended time is rejected by the old 19:00-only check.
+Before deploying the extended-hours request type (up to 1 month, vehicle use 19:00–21:00 only on each date), apply `db/migrations/20261028_extended_usage_time.sql` (if not applied yet) and then `db/migrations/20261101_extended_hours_window.sql` to the existing database. Without the second migration, every request fails because the app reads and writes the new `usage_until` column.
 
 Do not commit JSON backups or employee exports.
 

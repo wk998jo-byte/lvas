@@ -77,12 +77,13 @@ export const authorizationFormSchema = authorizationFieldsSchema.refine(
   { message: endsAfterStart.message, path: [...endsAfterStart.path] },
 );
 
-export const employeeLookupSchema = z.object({
-  query: z.string().trim().min(3, "Enter at least 3 characters").max(80),
-});
-
+/** Exact badge plus ID digits; the public form never searches or lists employees. */
 export const employeeVerifySchema = z.object({
-  employee_id: z.string().uuid("Select your name from the list"),
+  badge: z
+    .string()
+    .trim()
+    .min(1, "Enter your badge number")
+    .max(32, "Badge number is too long"),
   id_last4: z
     .string()
     .trim()
@@ -91,7 +92,11 @@ export const employeeVerifySchema = z.object({
 
 export const publicRequestSchema = authorizationFieldsSchema
   .extend({
-    employee_id: z.string().uuid("Select your name from the list"),
+    badge: z
+      .string()
+      .trim()
+      .min(1, "Enter your badge number")
+      .max(32, "Badge number is too long"),
     id_last4: z
       .string()
       .trim()
@@ -103,7 +108,7 @@ export const publicRequestSchema = authorizationFieldsSchema
     location: z.enum(PROJECT_LOCATIONS, {
       error: "Select your project location",
     }),
-    extended_time: z.boolean({ error: "Choose whether you need extended time" }).default(false),
+    extended_hours: z.boolean().default(false),
     justification: z
       .string()
       .trim()

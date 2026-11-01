@@ -1,5 +1,12 @@
 import { effectiveAuthorizationStatus } from "@/lib/authorizations/effective-status";
-import { BUSINESS_TIME_ZONE, normalizeAllowedUsageAfter, saudiTodayIsoDate } from "@/lib/business-date";
+import {
+  BUSINESS_TIME_ZONE,
+  EXTENDED_HOURS_UNTIL,
+  FIXED_USAGE_AFTER,
+  isExtendedHours,
+  normalizeAllowedUsageAfter,
+  saudiTodayIsoDate,
+} from "@/lib/business-date";
 import type { AuthorizationStatus } from "@/types/database";
 
 /** Read-only input. No contact, ID fragments, justification or approver data. */
@@ -9,6 +16,7 @@ export type GateAuthorizationRow = {
   start_date: string;
   end_date: string;
   usage_after: string;
+  usage_until: string | null;
   location: string | null;
   vehicle: { door_number: string | null; plate_number: string | null; make: string; model: string } | null;
   requester: { full_name: string; badge: string | null } | null;
@@ -29,6 +37,7 @@ export type GateVerificationResultData = {
     startDate: string;
     endDate: string;
     usageAfter: string;
+    usageUntil: string | null;
     reference: string;
   };
 };
@@ -77,7 +86,15 @@ export function evaluateGateAuthorization(
   if (!usageAfter) {
     return gateResult("invalid", "Authorization usage rule is not valid.", now);
   }
+  const extendedHours = row.usage_until != null;
+  if (
+    extendedHours &&
+    (!isExtendedHours(row.usage_until) || usageAfter !== FIXED_USAGE_AFTER)
+  ) {
+    return gateResult("invalid", "Authorization usage rule is not valid.", now);
+  }
   const usageAfterLabel = usageAfter.slice(0, 5);
+  const usageUntilLabel = extendedHours ? EXTENDED_HOURS_UNTIL.slice(0, 5) : null;
   if (today < row.start_date) {
     return gateResult("not_yet_valid", "Authorization not yet valid.", now);
   }
@@ -86,7 +103,16 @@ export function evaluateGateAuthorization(
     hourCycle: "h23",
   }).format(now);
   if (clock < usageAfter) {
-    return gateResult("not_yet_valid", `Valid only after ${usageAfterLabel} Saudi time.`, now);
+    return gateResult(
+      "not_yet_valid",
+      usageUntilLabel
+        ? `Valid only between ${usageAfterLabel} and ${usageUntilLabel} Saudi time.`
+        : `Valid only after ${usageAfterLabel} Saudi time.`,
+      now,
+    );
+  }
+  if (usageUntilLabel && clock >= EXTENDED_HOURS_UNTIL) {
+    return gateResult("invalid", `Extended hours ended at ${usageUntilLabel} Saudi time.`, now);
   }
   return {
     ...gateResult("valid", "Approved for after-hours use.", now),
@@ -100,6 +126,7 @@ export function evaluateGateAuthorization(
       startDate: row.start_date,
       endDate: row.end_date,
       usageAfter: usageAfterLabel,
+      usageUntil: usageUntilLabel,
       reference: row.id.slice(0, 8).toUpperCase(),
     },
   };

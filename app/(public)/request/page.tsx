@@ -78,6 +78,12 @@ export default async function PublicRequestPage() {
             );
           })}
         </ul>
+        <p className="mt-2 text-xs text-slate-600">
+          <span className="font-semibold text-slate-900">
+            {t.common.extendedHours.option}:
+          </span>{" "}
+          {t.common.extendedHours.help}
+        </p>
       </section>
 
       <PublicRequestForm vehicles={vehicles} />

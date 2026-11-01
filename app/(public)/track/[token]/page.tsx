@@ -8,7 +8,11 @@ import { PublicPass } from "@/components/public/public-pass";
 import { Button } from "@/components/ui/button";
 import { approvalStatusLabel } from "@/lib/approvals/presentation";
 import { effectiveAuthorizationStatus } from "@/lib/authorizations/effective-status";
-import { isExtendedUsageAfter, saudiTodayIsoDate } from "@/lib/business-date";
+import {
+  formatUsageWindow,
+  isExtendedHours,
+  saudiTodayIsoDate,
+} from "@/lib/business-date";
 import { getAuthorizationByPublicToken } from "@/lib/db/queries";
 import { getI18n } from "@/lib/i18n/server";
 import { publicTokenSchema } from "@/lib/validations";
@@ -49,10 +53,9 @@ export default async function TrackRequestPage({
     ? request.employees[0]
     : request.employees;
   const reference = request.id.slice(0, 8).toUpperCase();
-  const usageAfter =
-    typeof request.usage_after === "string"
-      ? request.usage_after.slice(0, 5)
-      : request.usage_after;
+  const usageAfter = request.usage_after.slice(0, 5);
+  const usageUntil = request.usage_until ? request.usage_until.slice(0, 5) : null;
+  const extendedHours = isExtendedHours(request.usage_until);
   const status = effectiveAuthorizationStatus(
     request.status,
     request.end_date,
@@ -121,13 +124,15 @@ export default async function TrackRequestPage({
           />
           <div>
             <dt className="text-[11px] font-semibold tracking-[0.14em] text-slate-400 uppercase">
-              {t.common.extendedTime.usageAfter}
+              {extendedHours
+                ? t.common.extendedHours.usageWindow
+                : t.common.extendedHours.usageAfter}
             </dt>
             <dd className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-800">
-              {String(usageAfter)}
-              {isExtendedUsageAfter(String(usageAfter)) ? (
+              {formatUsageWindow(usageAfter, usageUntil)}
+              {extendedHours ? (
                 <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-                  {t.common.extendedTime.badge}
+                  {t.common.extendedHours.badge}
                 </span>
               ) : null}
             </dd>
@@ -156,7 +161,8 @@ export default async function TrackRequestPage({
             badge: employee.badge,
             startDate: request.start_date,
             endDate: request.end_date,
-            usageAfter: String(usageAfter),
+            usageAfter,
+            usageUntil,
             verificationUrl: buildGateVerificationUrl(parsed.data.token),
           }}
         />

@@ -6,7 +6,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { BrandLogo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { plateLabel } from "@/components/vehicles/plate-label";
-import { isExtendedUsageAfter } from "@/lib/business-date";
+import { formatUsageWindow, isExtendedHours } from "@/lib/business-date";
 import { useI18n } from "@/lib/i18n/client";
 
 export type PublicPassData = {
@@ -19,6 +19,7 @@ export type PublicPassData = {
   startDate: string;
   endDate: string;
   usageAfter: string;
+  usageUntil: string | null;
   verificationUrl: string | null;
 };
 
@@ -29,9 +30,11 @@ export function PublicPass({ pass }: { pass: PublicPassData }) {
     plate_number: pass.plate,
     door_number: pass.doorNumber,
   });
-  const usageAfter = isExtendedUsageAfter(pass.usageAfter)
-    ? `${pass.usageAfter} · ${t.common.extendedTime.badge}`
-    : pass.usageAfter;
+  const extendedHours = isExtendedHours(pass.usageUntil);
+  const usageWindow = formatUsageWindow(pass.usageAfter, pass.usageUntil);
+  const usage = extendedHours
+    ? `${usageWindow} · ${t.common.extendedHours.badge}`
+    : usageWindow;
   return (
     <div className="space-y-3">
       <Button
@@ -71,7 +74,14 @@ export function PublicPass({ pass }: { pass: PublicPassData }) {
                 value={plate === "Plate unavailable" ? t.public.vehicle.plateUnavailable : plate}
               />
               <PassField label={copy.vehicle} value={pass.vehicle} />
-              <PassField label={t.common.extendedTime.usageAfter} value={usageAfter} />
+              <PassField
+                label={
+                  extendedHours
+                    ? t.common.extendedHours.usageWindow
+                    : t.common.extendedHours.usageAfter
+                }
+                value={usage}
+              />
               <PassField label={copy.validFrom} value={pass.startDate} />
               <PassField label={copy.expires} value={pass.endDate} accent />
             </div>

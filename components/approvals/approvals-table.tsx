@@ -48,7 +48,11 @@ import {
   effectiveAuthorizationStatus,
   isEffectivelyApproved,
 } from "@/lib/authorizations/effective-status";
-import { isExtendedUsageAfter, saudiTodayIsoDate } from "@/lib/business-date";
+import {
+  formatUsageWindow,
+  isExtendedHours,
+  saudiTodayIsoDate,
+} from "@/lib/business-date";
 import { useI18n } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 import type { VisibleAuthorizationConflict } from "@/lib/authorizations/overlap";
@@ -320,13 +324,9 @@ export function ApprovalsTable({
                 start_date: request.start_date,
                 end_date: request.end_date,
                 duration_label: request.duration_label,
-                usage_after:
-                  typeof request.usage_after === "string"
-                    ? request.usage_after.slice(0, 5)
-                    : request.usage_after,
-                extended_time: isExtendedUsageAfter(request.usage_after)
-                  ? "Yes"
-                  : "No",
+                usage_after: request.usage_after.slice(0, 5),
+                usage_until: request.usage_until ? request.usage_until.slice(0, 5) : "",
+                extended_hours: isExtendedHours(request.usage_until) ? "Yes" : "No",
                 purpose: request.purpose ?? "",
                 rejection_reason: request.rejection_reason ?? "",
                 created_at: request.created_at,
@@ -402,10 +402,7 @@ export function ApprovalsTable({
               employee: request.employees,
               contactMobile: request.contact_mobile,
             });
-            const usage =
-              typeof request.usage_after === "string"
-                ? request.usage_after.slice(0, 5)
-                : request.usage_after;
+            const usage = formatUsageWindow(request.usage_after, request.usage_until);
             const status = effectiveAuthorizationStatus(
               request.status,
               request.end_date,
@@ -417,7 +414,7 @@ export function ApprovalsTable({
               request.end_date,
               saudiToday,
             );
-            const extended = isExtendedUsageAfter(request.usage_after);
+            const extended = isExtendedHours(request.usage_until);
             const conflict = request.activeConflict ?? null;
             const plate = vehicle
               ? `${vehicle.door_number ? `${copy.door(vehicle.door_number)} · ` : ""}${plateLabel(vehicle)}`
@@ -563,11 +560,14 @@ export function ApprovalsTable({
                   <div className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2.5 text-sm text-slate-600">
                     <Clock3 className="size-4 shrink-0 text-slate-400" />
                     <span>
-                      {t.common.extendedTime.usageAfter} {usage}
+                      {extended
+                        ? t.common.extendedHours.usageWindow
+                        : t.common.extendedHours.usageAfter}{" "}
+                      {usage}
                     </span>
                     {extended ? (
                       <span className="rounded-full border border-[#e30613]/20 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-[#e30613]">
-                        {t.common.extendedTime.badge}
+                        {t.common.extendedHours.badge}
                       </span>
                     ) : null}
                   </div>
