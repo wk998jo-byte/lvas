@@ -5,7 +5,6 @@ import { Car } from "lucide-react";
 import { PublicRequestForm } from "@/components/public/public-request-form";
 import { ROLE_REQUEST_LIMITS } from "@/lib/authorizations/limits";
 import { roleLabel } from "@/lib/auth/roles";
-import { listActiveVehicles } from "@/lib/db/queries";
 import { getI18n } from "@/lib/i18n/server";
 import type { UserRole } from "@/types/database";
 
@@ -26,7 +25,6 @@ const CATEGORY_ORDER: UserRole[] = [
 ];
 
 export default async function PublicRequestPage() {
-  const vehicles = await listActiveVehicles();
   const { t, locale } = await getI18n();
   const copy = t.public.request;
   const limits = t.common.limits;
@@ -86,7 +84,7 @@ export default async function PublicRequestPage() {
         </p>
       </section>
 
-      <PublicRequestForm vehicles={vehicles} />
+      <PublicRequestForm />
     </div>
   );
 }

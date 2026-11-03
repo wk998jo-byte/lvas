@@ -1,5 +1,5 @@
-import type { NextConfig } from "next";
-import path from "path";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -33,13 +33,13 @@ const securityHeaders = [
     : [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" }]),
 ];
 
-const nextConfig: NextConfig = {
+const nextConfig = {
   // Allow LAN / localhost HMR in `next dev` (avoids blocked cross-origin warnings).
   allowedDevOrigins: ["localhost:3000", "172.16.21.42", "127.0.0.1:3000"],
   poweredByHeader: false,
   turbopack: {
     // Keep Turbopack rooted in this app (avoids parent-folder lockfile noise).
-    root: path.resolve(__dirname),
+    root: path.dirname(fileURLToPath(import.meta.url)),
   },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];

@@ -18,7 +18,7 @@ import { toast } from "sonner";
 
 import {
   submitPublicRequest,
-  verifyEmployee,
+  verifyEmployeeForRequest,
   type PublicEmployee,
 } from "@/actions/public-requests";
 import { PROJECT_LOCATIONS } from "@/lib/approvals/logistics-team";
@@ -45,10 +45,6 @@ import {
 } from "@/components/vehicles/vehicle-combobox";
 import { cn } from "@/lib/utils";
 
-type PublicRequestFormProps = {
-  vehicles: VehicleOption[];
-};
-
 /** Extended hours: 19:00–21:00 on each date, up to 30 days, never combined with the standard window. */
 type DurationMode = "one_day" | "custom" | "extended";
 
@@ -67,9 +63,13 @@ function limitCopy(role: UserRole, limits: Dictionary["common"]["limits"]) {
 }
 
 /** Identity carried between steps; the server re-verifies on submit. */
-type VerifiedIdentity = { employee: PublicEmployee; idLast4: string };
+type VerifiedIdentity = {
+  employee: PublicEmployee;
+  idLast4: string;
+  vehicles: VehicleOption[];
+};
 
-export function PublicRequestForm({ vehicles }: PublicRequestFormProps) {
+export function PublicRequestForm() {
   const router = useRouter();
   const { t } = useI18n();
   const [verified, setVerified] = useState<VerifiedIdentity | null>(null);
@@ -80,7 +80,7 @@ export function PublicRequestForm({ vehicles }: PublicRequestFormProps) {
       {verified ? (
         <DetailsStep
           identity={verified}
-          vehicles={vehicles}
+          vehicles={verified.vehicles}
           onSubmitted={(token) => router.push(`/track/${token}`)}
         />
       ) : (
@@ -117,7 +117,7 @@ function IdentityStep({
 
     setError(null);
     startTransition(async () => {
-      const result = await verifyEmployee({
+      const result = await verifyEmployeeForRequest({
         badge: badgeValue,
         id_last4: idLast4,
       });
@@ -129,8 +129,8 @@ function IdentityStep({
 
       setBadge("");
       setIdLast4("");
-      onVerified({ employee: result.data, idLast4 });
-      toast.success(copy.welcome(result.data.full_name.split(" ")[0]));
+      onVerified({ ...result.data, idLast4 });
+      toast.success(copy.welcome(result.data.employee.full_name.split(" ")[0]));
     });
   }
 

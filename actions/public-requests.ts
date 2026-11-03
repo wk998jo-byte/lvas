@@ -28,6 +28,7 @@ import {
   getLastLimitRequestAt,
   getVehicleById,
   insertAuthorization,
+  listActiveVehicles,
   listAuthorizationsByEmployeeId,
   listLogisticsApproverIdsForLocation,
   type BadgeAuthorizationRow,
@@ -58,6 +59,28 @@ export async function verifyEmployee(
   }
 
   return findVerifiedEmployee({ badge: parsed.data.badge, idLast4: parsed.data.id_last4 });
+}
+
+/**
+ * Keep vehicle options behind the same exact badge/ID verification and budgets.
+ * No vehicle query runs on page load or on a failed verification. A loading
+ * failure keeps Step 2 locked and returns no employee or vehicle data.
+ */
+export async function verifyEmployeeForRequest(
+  input: unknown,
+): Promise<ActionResult<{
+  employee: PublicEmployee;
+  vehicles: Awaited<ReturnType<typeof listActiveVehicles>>;
+}>> {
+  const verified = await verifyEmployee(input);
+  if (!verified.ok) return verified;
+
+  try {
+    const vehicles = await listActiveVehicles();
+    return ok({ employee: verified.data, vehicles });
+  } catch {
+    return fail(SAFE_REQUEST_ERROR);
+  }
 }
 
 async function findVerifiedEmployee(
